@@ -1,0 +1,25 @@
+{  
+  "compilerOptions": {
+    "module": "commonjs",
+    "declaration": true,
+    "removeComments": true,
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "allowSyntheticDefaultImports": true,
+    "target": "ES2021",
+    "sourceMap": true,
+    "outDir": "./dist" /* Redirect output structure to the directory. */,
+    "baseUrl": "./",
+    "incremental": true,   
+    "skipLibCheck": true /* Skip type checking of declaration files. */,
+    "strictNullChecks": false,
+    "noImplicitAny": false,
+    "strictBindCallApply": false,
+    "forceConsistentCasingInFileNames": true /* Disallow inconsistently-cased references to the same file. */,
+    "noFallthroughCasesInSwitch": false,
+    "typeRoots": ["node_modules/@types"]
+  },
+  "include": ["./src/**/*"],
+  "exclude": ["node_modules", "**/*.test.ts", "**/*.spec.ts"],
+  "incremental": true
+}

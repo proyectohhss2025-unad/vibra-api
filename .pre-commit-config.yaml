@@ -1,0 +1,20 @@
+version: 2.15.0
+
+repos:
+  - repo: local
+    hooks:
+      - id: lint
+        name: Run ESLint
+        language: nodejs
+        entry: ./scripts/lint.sh
+        types: [js, json, ts]
+      - id: format
+        name: Format with Prettier
+        language: nodejs
+        entry: ./scripts/format.sh
+        types: [js, json, ts]
+      - id: test
+        name: Run unit tests
+        language: nodejs
+        entry: ./scripts/test.sh
+        types: [js, ts]
