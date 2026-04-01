@@ -24,14 +24,14 @@ async function bootstrap() {
           level: 'error',
           format: winston.format.combine(
             winston.format.timestamp(),
-            winston.format.json()
-          )
-        })
+            winston.format.json(),
+          ),
+        }),
       ],
     }),
   });
 
-  app.useGlobalPipes(new ValidationPipe())
+  app.useGlobalPipes(new ValidationPipe());
 
   app.enableCors({
     origin: process.env.CORS_ORIGINS ? process.env.CORS_ORIGINS.split(',') : [],
@@ -60,13 +60,15 @@ async function bootstrap() {
         description: 'Enter JWT token',
         in: 'header',
       },
-      'JWT-auth'
+      'JWT-auth',
     )
     .build();
   const documentFactory = () => SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api', app, documentFactory);
 
   await app.listen(process.env.PORT || 4000, process.env.HOST);
-  console.log(`Application API is running on http://${process.env.HOST}:${process.env.PORT}`);
+  console.log(
+    `Application API is running on http://${process.env.HOST}:${process.env.PORT}`,
+  );
 }
 bootstrap();

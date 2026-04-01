@@ -1,5 +1,10 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document, HydratedDocument, Schema as MongooseSchema, Types } from 'mongoose';
+import {
+  Document,
+  HydratedDocument,
+  Schema as MongooseSchema,
+  Types,
+} from 'mongoose';
 import { PermissionTemplate } from '../../permissionTemplates/schemas/permissionTemplate.schema';
 import { User } from '../../users/schemas/user.schema';
 
@@ -10,11 +15,11 @@ export type RoleDocument = HydratedDocument<Role>;
  * @typedef {Object} Role
  *
  * @property {String} serial - id unique
- * @property {String} name 
- * @property {String} description 
+ * @property {String} name
+ * @property {String} description
  * @property {permissionTemplate} permissionTemplate - Templates assigned to role, for default get first template in list
  * @property {boolean} isSuperAdmin - If all access to permissions in system
- * @property {boolean} isActive 
+ * @property {boolean} isActive
  * @property {Date} editedAt - Date edited
  * @property {String} editedBy - User edited.
  * @property {Date} createdAt - Date edited
@@ -22,50 +27,50 @@ export type RoleDocument = HydratedDocument<Role>;
  */
 @Schema({ timestamps: true })
 export class Role extends Document {
-    @Prop({ required: true })
-    name: string;
+  @Prop({ required: true })
+  name: string;
 
-    @Prop({ required: true })
-    description: string;
+  @Prop({ required: true })
+  description: string;
 
-    @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'PermissionTemplate' })
-    permissionTemplate?: Types.ObjectId | PermissionTemplate;
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'PermissionTemplate' })
+  permissionTemplate?: Types.ObjectId | PermissionTemplate;
 
-    @Prop({ type: Boolean, default: false })
-    isSuperAdmin: boolean;
+  @Prop({ type: Boolean, default: false })
+  isSuperAdmin: boolean;
 
-    @Prop({ type: [{ type: MongooseSchema.Types.ObjectId, ref: 'User' }] })
-    usersAssigned?: Types.ObjectId[] | User[];
+  @Prop({ type: [{ type: MongooseSchema.Types.ObjectId, ref: 'User' }] })
+  usersAssigned?: Types.ObjectId[] | User[];
 
-    @Prop({ type: String })
-    serial?: string;
+  @Prop({ type: String })
+  serial?: string;
 
-    @Prop({ type: Boolean, default: true })
-    isActive?: boolean;
+  @Prop({ type: Boolean, default: true })
+  isActive?: boolean;
 
-    @Prop({ type: Boolean, default: false })
-    deleted?: boolean;
+  @Prop({ type: Boolean, default: false })
+  deleted?: boolean;
 
-    @Prop({ type: Date })
-    deletedAt?: Date;
+  @Prop({ type: Date })
+  deletedAt?: Date;
 
-    @Prop({ type: String })
-    deletedBy?: string;
+  @Prop({ type: String })
+  deletedBy?: string;
 
-    @Prop({ type: Date })
-    editedAt?: Date;
+  @Prop({ type: Date })
+  editedAt?: Date;
 
-    @Prop({ type: String })
-    editedBy?: string;
+  @Prop({ type: String })
+  editedBy?: string;
 
-    @Prop({ type: Date, default: Date.now })
-    createdAt: Date;
+  @Prop({ type: Date, default: Date.now })
+  createdAt: Date;
 
-    @Prop({ type: String })
-    createdBy: string;
+  @Prop({ type: String })
+  createdBy: string;
 
-    @Prop({ type: String })
-    event?: string;
+  @Prop({ type: String })
+  event?: string;
 }
 
 export const RoleSchema = SchemaFactory.createForClass(Role);

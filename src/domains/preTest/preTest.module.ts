@@ -6,14 +6,14 @@ import { PreTestService } from './preTest.service';
 import { PreTest, PreTestSchema } from './schemas/preTest.schema';
 
 @Module({
-  imports: [MongooseModule.forFeature([{ name: PreTest.name, schema: PreTestSchema }])],
+  imports: [
+    MongooseModule.forFeature([{ name: PreTest.name, schema: PreTestSchema }]),
+  ],
   controllers: [PreTestController],
   providers: [PreTestService],
 })
 export class PreTestModule implements NestModule {
-    configure(consumer: MiddlewareConsumer) {
-        consumer
-            .apply(AuthMiddleware)
-            .forRoutes(PreTestController);
-    }
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(AuthMiddleware).forRoutes(PreTestController);
+  }
 }

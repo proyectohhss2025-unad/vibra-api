@@ -6,52 +6,52 @@ import { Readable } from 'stream';
 
 @Injectable()
 export class FileUploadService {
-    private gridFSBucket: GridFSBucket;
+  private gridFSBucket: GridFSBucket;
 
-    constructor(@InjectConnection() private readonly connection: Connection) {
-        this.gridFSBucket = new GridFSBucket(this.connection.db);
-    }
+  constructor(@InjectConnection() private readonly connection: Connection) {
+    this.gridFSBucket = new GridFSBucket(this.connection.db);
+  }
 
-    async uploadFile(file: Express.Multer.File): Promise<string> {
-        const readableStream = new Readable();
-        readableStream.push(file?.buffer);
-        readableStream.push(null);
+  async uploadFile(file: Express.Multer.File): Promise<string> {
+    const readableStream = new Readable();
+    readableStream.push(file?.buffer);
+    readableStream.push(null);
 
-        const uploadStream = this.gridFSBucket.openUploadStream(file?.originalname);
-        readableStream.pipe(uploadStream);
+    const uploadStream = this.gridFSBucket.openUploadStream(file?.originalname);
+    readableStream.pipe(uploadStream);
 
-        return new Promise((resolve, reject) => {
-            uploadStream.on('finish', () => resolve(uploadStream.id.toString()));
-            uploadStream.on('error', reject);
-        });
-    }
+    return new Promise((resolve, reject) => {
+      uploadStream.on('finish', () => resolve(uploadStream.id.toString()));
+      uploadStream.on('error', reject);
+    });
+  }
 
-    async saveFile(fileInfo: any): Promise<any> {
-        const fileSchema = new mongoose.Schema({
-            filename: String,
-            originalname: String,
-            mimetype: String,
-            path: String,
-        });
+  async saveFile(fileInfo: any): Promise<any> {
+    const fileSchema = new mongoose.Schema({
+      filename: String,
+      originalname: String,
+      mimetype: String,
+      path: String,
+    });
 
-        const File = this.connection.model('File', fileSchema);
-        return await new File(fileInfo).save();
-    }
+    const File = this.connection.model('File', fileSchema);
+    return await new File(fileInfo).save();
+  }
 
-    async saveFiles(filesInfo: any[]): Promise<any[]> {
-        const fileSchema = new mongoose.Schema({
-            filename: String,
-            originalname: String,
-            mimetype: String,
-            path: String,
-        });
+  async saveFiles(filesInfo: any[]): Promise<any[]> {
+    const fileSchema = new mongoose.Schema({
+      filename: String,
+      originalname: String,
+      mimetype: String,
+      path: String,
+    });
 
-        const File = this.connection.model('File', fileSchema);
-        return await File.insertMany(filesInfo);
-    }
+    const File = this.connection.model('File', fileSchema);
+    return await File.insertMany(filesInfo);
+  }
 
-    async getFileStream(fileId: string): Promise<Readable> {
-        const objectId = new ObjectId(fileId);
-        return this.gridFSBucket.openDownloadStream(objectId);
-    }
+  async getFileStream(fileId: string): Promise<Readable> {
+    const objectId = new ObjectId(fileId);
+    return this.gridFSBucket.openDownloadStream(objectId);
+  }
 }

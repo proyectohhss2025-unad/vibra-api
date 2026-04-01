@@ -9,19 +9,17 @@ import { AuditLog, AuditLogSchema } from './schemas/auditLog.schema';
  * Módulo para la gestión de registros de auditoría
  */
 @Module({
-    imports: [
-        MongooseModule.forFeature([
-            { name: AuditLog.name, schema: AuditLogSchema },
-        ]),
-    ],
-    controllers: [AuditLogController],
-    providers: [AuditLogService],
-    exports: [AuditLogService],
+  imports: [
+    MongooseModule.forFeature([
+      { name: AuditLog.name, schema: AuditLogSchema },
+    ]),
+  ],
+  controllers: [AuditLogController],
+  providers: [AuditLogService],
+  exports: [AuditLogService],
 })
 export class AuditLogModule implements NestModule {
-    configure(consumer: MiddlewareConsumer) {
-        consumer
-            .apply(AuthMiddleware)
-            .forRoutes(AuditLogController);
-    }
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(AuthMiddleware).forRoutes(AuditLogController);
+  }
 }

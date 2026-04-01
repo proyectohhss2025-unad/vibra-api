@@ -9,20 +9,19 @@ import { CompanyService } from './company.service';
 import { Company, CompanySchema } from './schemas/company.schema';
 
 @Module({
-    imports: [
-        MongooseModule.forFeature([
-            { name: Company.name, schema: CompanySchema },
-            { name: User.name, schema: UserSchema }]),
-        LoggerModule,
-    ],
-    controllers: [CompanyController],
-    providers: [CompanyService, UsersService],
-    exports: [CompanyService],
+  imports: [
+    MongooseModule.forFeature([
+      { name: Company.name, schema: CompanySchema },
+      { name: User.name, schema: UserSchema },
+    ]),
+    LoggerModule,
+  ],
+  controllers: [CompanyController],
+  providers: [CompanyService, UsersService],
+  exports: [CompanyService],
 })
 export class CompanyModule implements NestModule {
-    configure(consumer: MiddlewareConsumer) {
-        consumer
-            .apply(AuthMiddleware)
-            .forRoutes(CompanyController);
-    }
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(AuthMiddleware).forRoutes(CompanyController);
+  }
 }

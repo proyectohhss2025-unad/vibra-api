@@ -9,27 +9,28 @@ import { extname } from 'path';
 import { AuthMiddleware } from 'src/infrastructure/auth/auth.middleware';
 
 @Module({
-    imports: [
-        MongooseModule.forFeature([{ name: Feedback.name, schema: FeedbackSchema }]),
-        MulterModule.register({
-            storage: diskStorage({
-                destination: './uploads',
-                filename: (req, file, callback) => {
-                    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-                    const ext = extname(file.originalname);
-                    callback(null, `feedback-${uniqueSuffix}${ext}`);
-                },
-            }),
-        }),
-    ],
-    controllers: [FeedbackController],
-    providers: [FeedbackService],
-    exports: [FeedbackService],
+  imports: [
+    MongooseModule.forFeature([
+      { name: Feedback.name, schema: FeedbackSchema },
+    ]),
+    MulterModule.register({
+      storage: diskStorage({
+        destination: './uploads',
+        filename: (req, file, callback) => {
+          const uniqueSuffix =
+            Date.now() + '-' + Math.round(Math.random() * 1e9);
+          const ext = extname(file.originalname);
+          callback(null, `feedback-${uniqueSuffix}${ext}`);
+        },
+      }),
+    }),
+  ],
+  controllers: [FeedbackController],
+  providers: [FeedbackService],
+  exports: [FeedbackService],
 })
 export class FeedbackModule implements NestModule {
-    configure(consumer: MiddlewareConsumer) {
-        consumer
-            .apply(AuthMiddleware)
-            .forRoutes(FeedbackController);
-    }
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(AuthMiddleware).forRoutes(FeedbackController);
+  }
 }

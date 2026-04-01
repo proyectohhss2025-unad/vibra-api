@@ -1,6 +1,6 @@
-//INFO: ENVIRONMENTAL VARIABLES FOR THE APPLICATION 
+//INFO: ENVIRONMENTAL VARIABLES FOR THE APPLICATION
 
-import { z } from "zod";
+import { z } from 'zod';
 
 export const envVars = z.object({
   MONGO_URI: z.string(),

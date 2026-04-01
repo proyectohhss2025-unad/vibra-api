@@ -7,17 +7,18 @@ import { LoggerModule } from '../logger';
 import { AuthMiddleware } from 'src/infrastructure/auth/auth.middleware';
 
 @Module({
-    imports: [MongooseModule.forFeature([{ name: Translate.name, schema: TranslateSchema }]),
-        LoggerModule
-    ],
-    controllers: [TranslateController],
-    providers: [TranslateService],
-    exports: [TranslateService]
+  imports: [
+    MongooseModule.forFeature([
+      { name: Translate.name, schema: TranslateSchema },
+    ]),
+    LoggerModule,
+  ],
+  controllers: [TranslateController],
+  providers: [TranslateService],
+  exports: [TranslateService],
 })
 export class TranslateModule implements NestModule {
-    configure(consumer: MiddlewareConsumer) {
-        consumer
-            .apply(AuthMiddleware)
-            .forRoutes(TranslateController);
-    }
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(AuthMiddleware).forRoutes(TranslateController);
+  }
 }

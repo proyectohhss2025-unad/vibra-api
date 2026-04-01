@@ -6,17 +6,15 @@ import { TasksController } from './tasks.controller';
 import { AuthMiddleware } from 'src/infrastructure/auth/auth.middleware';
 
 @Module({
-    imports: [
-        MongooseModule.forFeature([{ name: Task.name, schema: TaskSchema }]),
-    ],
-    controllers: [TasksController],
-    providers: [TasksService],
-    exports: [TasksService],
+  imports: [
+    MongooseModule.forFeature([{ name: Task.name, schema: TaskSchema }]),
+  ],
+  controllers: [TasksController],
+  providers: [TasksService],
+  exports: [TasksService],
 })
 export class TasksModule implements NestModule {
-    configure(consumer: MiddlewareConsumer) {
-        consumer
-            .apply(AuthMiddleware)
-            .forRoutes(TasksController);
-    }
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(AuthMiddleware).forRoutes(TasksController);
+  }
 }

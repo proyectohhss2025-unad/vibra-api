@@ -7,17 +7,34 @@ import { PreTest, TestDocument } from './schemas/preTest.schema';
 
 @Injectable()
 export class PreTestService {
-  constructor(@InjectModel(PreTest.name) private preTestModel: Model<TestDocument>) { }
+  constructor(
+    @InjectModel(PreTest.name) private preTestModel: Model<TestDocument>,
+  ) {}
 
-  create(createTestDto: CreatePreTestDto) {
-    return 'This action adds a new test';
+  async create(createTestDto: CreatePreTestDto): Promise<PreTest> {
+    const totalScore =
+      typeof createTestDto.totalScore === 'number'
+        ? createTestDto.totalScore
+        : (createTestDto.responses || []).reduce(
+            (sum: number, response: any) => sum + (response.points || 0),
+            0,
+          );
+
+    const test = new this.preTestModel({
+      ...createTestDto,
+      totalScore,
+    });
+    return test.save();
   }
 
-  async findAll(page: number = 1, limit: number = 10): Promise<{ data: PreTest[]; total: number; }> {
+  async findAll(
+    page: number = 1,
+    limit: number = 10,
+  ): Promise<{ data: PreTest[]; total: number }> {
     const skip = (page - 1) * limit;
     const [data, total] = await Promise.all([
       this.preTestModel.find().skip(skip).limit(limit).exec(),
-      this.preTestModel.countDocuments()
+      this.preTestModel.countDocuments(),
     ]);
     return { data, total };
   }
@@ -27,12 +44,22 @@ export class PreTestService {
       return `This action returns a #${id} test`;
     }*/
 
-  update(id: number, updateTestDto: UpdatePreTestDto) {
-    return `This action updates a #${id} test`;
+  async update(id: string, updateTestDto: UpdatePreTestDto): Promise<PreTest> {
+    const updated = await this.preTestModel
+      .findByIdAndUpdate(id, { $set: updateTestDto }, { new: true })
+      .exec();
+    if (!updated) {
+      throw new NotFoundException('Pre-test not found.');
+    }
+    return updated;
   }
 
-  remove(id: number) {
-    return `This action removes a #${id} test`;
+  async remove(id: string): Promise<PreTest> {
+    const deleted = await this.preTestModel.findByIdAndDelete(id).exec();
+    if (!deleted) {
+      throw new NotFoundException('Pre-test not found.');
+    }
+    return deleted;
   }
 
   /**
@@ -41,28 +68,39 @@ export class PreTestService {
    * @returns
    */
   async savePreTestResponse(testData: any): Promise<PreTest> {
-    const parsedBody = JSON.parse(testData.body);
-    const responses = parsedBody.responses || [];
-    const totalScore = responses.reduce((sum: number, response: any) => sum + (response.points || 0), 0);
-    testData.totalScore = totalScore;
-    const test = new this.preTestModel(parsedBody);
+    const parsedBody =
+      typeof testData === 'string'
+        ? JSON.parse(testData)
+        : typeof testData?.body === 'string'
+          ? JSON.parse(testData.body)
+          : testData;
+
+    const responses = parsedBody?.responses || [];
+    const totalScore = responses.reduce(
+      (sum: number, response: any) => sum + (response.points || 0),
+      0,
+    );
+    const test = new this.preTestModel({ ...parsedBody, totalScore });
     return test.save();
   }
 
   /**
-   * 
-   * @param userId 
+   *
+   * @param userId
    * @param testId
-   * @returns 
+   * @returns
    */
-  async getUserAndTestResponses(userId: string, testId: string): Promise<PreTest[]> {
+  async getUserAndTestResponses(
+    userId: string,
+    testId: string,
+  ): Promise<PreTest[]> {
     return this.preTestModel.find({ userId, testId }).exec();
   }
 
   /**
-   * 
-   * @param userId 
-   * @returns 
+   *
+   * @param userId
+   * @returns
    */
   async getAlByUserId(userId: string): Promise<PreTest[]> {
     return this.preTestModel.find({ userId }).exec();
@@ -83,14 +121,15 @@ export class PreTestService {
    * @returns
    */
   async getPreTestResultById(id: string): Promise<PreTest> {
-    const testResult = await this.preTestModel.findById(id)
+    const testResult = await this.preTestModel
+      .findById(id)
       .populate({
         path: 'userId',
-        model: 'User'
+        model: 'User',
       })
       .exec();
     if (!testResult) {
-      throw new NotFoundException("Test result not found");
+      throw new NotFoundException('Test result not found');
     }
     return testResult;
   }

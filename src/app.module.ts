@@ -7,13 +7,13 @@ import * as path from 'path';
 import { ActivitiesModule } from './domains/activities/activities.module';
 import { AuditLogModule } from './domains/auditLog/audit-log.module';
 import { AuthModule } from './domains/auth/auth.module';
-import { ClientModule } from './domains/client/client.module';
 import { CompanyModule } from './domains/company';
 import { ConfigModule } from './domains/config/config.module';
 import { CronJobModule } from './domains/cronJob/cronJob.module';
 import { EmotionsModule } from './domains/emotions/emotions.module';
 import { FeedbackModule } from './domains/feedback/feedback.module';
 import { NotificationModule } from './domains/notification/notification.module';
+import { ParticipantModule } from './domains/participant/participant.module';
 import { PermissionTemplatesModule } from './domains/permissionTemplates/permissionTemplates.module';
 import { PoliciesModule } from './domains/policies/policies.module';
 import { PreTestModule } from './domains/preTest/preTest.module';
@@ -36,7 +36,7 @@ import { AppThrottlerModule } from './infrastructure/throttler/throttler.module'
   imports: [
     configMod.forRoot({
       isGlobal: true,
-      envFilePath: '.env'
+      envFilePath: '.env',
     }),
     MongooseModule.forRoot(process.env.MONGO_URI),
     ServeStaticModule.forRoot({
@@ -46,7 +46,7 @@ import { AppThrottlerModule } from './infrastructure/throttler/throttler.module'
     AuditLogModule,
     CompanyModule,
     CronJobModule,
-    ClientModule,
+    ParticipantModule,
     FeedbackModule,
     NotificationModule,
     LoggerModule,
@@ -67,7 +67,7 @@ import { AppThrottlerModule } from './infrastructure/throttler/throttler.module'
     CronJobModule,
     UserPermissionsModule,
     PermissionTemplatesModule,
-    TranslateModule
+    TranslateModule,
   ],
   providers: [
     EventsGateway,
@@ -78,4 +78,4 @@ import { AppThrottlerModule } from './infrastructure/throttler/throttler.module'
     },
   ],
 })
-export class AppModule { }
+export class AppModule {}

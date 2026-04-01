@@ -17,53 +17,53 @@ export type UserSessionDocument = Document & UserSession;
  */
 @Schema()
 export class UserSession extends Document {
-    @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Company' })
-    company: Types.ObjectId | Company;
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Company' })
+  company: Types.ObjectId | Company;
 
-    @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User' })
-    user: Types.ObjectId | User;
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User' })
+  user: Types.ObjectId | User;
 
-    @Prop({ required: true })
-    initTime: Date;
+  @Prop({ required: true })
+  initTime: Date;
 
-    @Prop()
-    endTime: Date;
+  @Prop()
+  endTime: Date;
 
-    @Prop()
-    ip: string;
+  @Prop()
+  ip: string;
 
-    @Prop({ default: false })
-    isLogged: boolean;
+  @Prop({ default: false })
+  isLogged: boolean;
 
-    @Prop()
-    serial?: string;
+  @Prop()
+  serial?: string;
 
-    @Prop({ default: true })
-    isActive?: boolean;
+  @Prop({ default: true })
+  isActive?: boolean;
 
-    @Prop({ default: false })
-    deleted?: boolean;
+  @Prop({ default: false })
+  deleted?: boolean;
 
-    @Prop()
-    deletedAt?: Date;
+  @Prop()
+  deletedAt?: Date;
 
-    @Prop()
-    deletedBy?: string;
+  @Prop()
+  deletedBy?: string;
 
-    @Prop()
-    editedAt?: Date;
+  @Prop()
+  editedAt?: Date;
 
-    @Prop()
-    editedBy?: string;
+  @Prop()
+  editedBy?: string;
 
-    @Prop({ default: Date.now })
-    createdAt: Date;
+  @Prop({ default: Date.now })
+  createdAt: Date;
 
-    @Prop()
-    createdBy: string;
+  @Prop()
+  createdBy: string;
 
-    @Prop()
-    event?: string;
+  @Prop()
+  event?: string;
 }
 
 export const UserSessionSchema = SchemaFactory.createForClass(UserSession);

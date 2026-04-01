@@ -9,22 +9,20 @@ import { AdminController } from './admin.controller';
 import { AdminService } from './admin.service';
 
 @Module({
-    imports: [
-        MongooseModule.forFeature([
-            { name: Notification.name, schema: NotificationSchema },
-            { name: File.name, schema: FileSchema },
-            { name: Report.name, schema: ReportSchema },
-        ]),
-        LoggerModule,
-    ],
-    controllers: [AdminController],
-    providers: [AdminService],
-    exports: [AdminService],
+  imports: [
+    MongooseModule.forFeature([
+      { name: Notification.name, schema: NotificationSchema },
+      { name: File.name, schema: FileSchema },
+      { name: Report.name, schema: ReportSchema },
+    ]),
+    LoggerModule,
+  ],
+  controllers: [AdminController],
+  providers: [AdminService],
+  exports: [AdminService],
 })
 export class AdminModule implements NestModule {
-    configure(consumer: MiddlewareConsumer) {
-        consumer
-            .apply(AuthMiddleware)
-            .forRoutes(AdminController);
-    }
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(AuthMiddleware).forRoutes(AdminController);
+  }
 }

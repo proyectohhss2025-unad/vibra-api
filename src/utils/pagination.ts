@@ -2,21 +2,21 @@
  * Interfaz para los parámetros de paginación
  */
 export interface PaginationParams {
-    page?: number;
-    limit?: number;
+  page?: number;
+  limit?: number;
 }
 
 /**
  * Interfaz para la respuesta paginada
  */
 export interface PaginatedResponse<T> {
-    data: T[];
-    meta: {
-        total: number;
-        page: number;
-        limit: number;
-        totalPages: number;
-    };
+  data: T[];
+  meta: {
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  };
 }
 
 /**
@@ -28,18 +28,18 @@ export interface PaginatedResponse<T> {
  * @returns Una respuesta paginada
  */
 export function createPaginatedResponse<T>(
-    data: T[],
-    total: number,
-    page: number,
-    limit: number,
+  data: T[],
+  total: number,
+  page: number,
+  limit: number,
 ): PaginatedResponse<T> {
-    return {
-        data,
-        meta: {
-            total,
-            page,
-            limit,
-            totalPages: Math.ceil(total / limit),
-        },
-    };
+  return {
+    data,
+    meta: {
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    },
+  };
 }

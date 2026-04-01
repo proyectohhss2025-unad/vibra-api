@@ -7,18 +7,16 @@ import { RolesService } from './roles.service';
 import { Role, RoleSchema } from './schemas/role.schema';
 
 @Module({
-    imports: [
-        MongooseModule.forFeature([{ name: Role.name, schema: RoleSchema }]),
-        LoggerModule, // Import logger module
-    ],
-    controllers: [RolesController],
-    providers: [RolesService],
-    exports: [RolesService],
+  imports: [
+    MongooseModule.forFeature([{ name: Role.name, schema: RoleSchema }]),
+    LoggerModule, // Import logger module
+  ],
+  controllers: [RolesController],
+  providers: [RolesService],
+  exports: [RolesService],
 })
 export class RolesModule implements NestModule {
-    configure(consumer: MiddlewareConsumer) {
-        consumer
-            .apply(AuthMiddleware)
-            .forRoutes(RolesController);
-    }
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(AuthMiddleware).forRoutes(RolesController);
+  }
 }

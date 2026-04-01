@@ -1,18 +1,18 @@
 import { IsString, IsOptional, IsNumber } from 'class-validator';
 
 export class CreateNotificationChannelDto {
-    @IsString()
-    title: string;
+  @IsString()
+  title: string;
 
-    @IsOptional()
-    @IsString()
-    description?: string;
+  @IsOptional()
+  @IsString()
+  description?: string;
 
-    @IsOptional()
-    @IsNumber()
-    level?: number;
+  @IsOptional()
+  @IsNumber()
+  level?: number;
 
-    @IsOptional()
-    @IsString()
-    createdBy?: string;
+  @IsOptional()
+  @IsString()
+  createdBy?: string;
 }

@@ -9,18 +9,16 @@ import { UsersService } from './users.service';
 import { JwtService } from '@nestjs/jwt';
 
 @Module({
-    imports: [
-        MongooseModule.forFeature([{ name: User.name, schema: UserSchema }]),
-        LoggerModule
-    ],
-    controllers: [UsersController],
-    providers: [UsersService, EventsGateway, JwtService],
-    exports: [UsersService],
+  imports: [
+    MongooseModule.forFeature([{ name: User.name, schema: UserSchema }]),
+    LoggerModule,
+  ],
+  controllers: [UsersController],
+  providers: [UsersService, EventsGateway, JwtService],
+  exports: [UsersService],
 })
 export class UsersModule implements NestModule {
-    configure(consumer: MiddlewareConsumer) {
-        consumer
-            .apply(AuthMiddleware)
-            .forRoutes(UsersController);
-    }
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(AuthMiddleware).forRoutes(UsersController);
+  }
 }

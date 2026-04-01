@@ -15,11 +15,11 @@
  * }
  * */
 export interface RankingEntry {
-    userId: string;
-    score: number;
-    username?: string;
-    avatar?: string;
-    position?: number;
+  userId: string;
+  score: number;
+  username?: string;
+  avatar?: string;
+  position?: number;
 }
 
 /**
@@ -36,8 +36,8 @@ export interface RankingEntry {
  * }
  * */
 export interface HistoricalRanking {
-    date: string;
-    topUsers: RankingEntry[];
+  date: string;
+  topUsers: RankingEntry[];
 }
 
 /**
@@ -54,6 +54,6 @@ export interface HistoricalRanking {
  * }
  * */
 export interface LiveRankingUpdate {
-    type: 'fullUpdate' | 'partialUpdate';
-    data: RankingEntry[] | Partial<RankingEntry>[];
+  type: 'fullUpdate' | 'partialUpdate';
+  data: RankingEntry[] | Partial<RankingEntry>[];
 }

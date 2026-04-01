@@ -1,5 +1,5 @@
-import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose";
-import { HydratedDocument } from "mongoose";
+import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+import { HydratedDocument } from 'mongoose';
 
 export type FeedbackDocument = HydratedDocument<Feedback>;
 
@@ -24,47 +24,47 @@ export type FeedbackDocument = HydratedDocument<Feedback>;
  */
 @Schema()
 export class Feedback {
-    @Prop()
-    serial?: string;
+  @Prop()
+  serial?: string;
 
-    @Prop({ required: true })
-    title: string;
+  @Prop({ required: true })
+  title: string;
 
-    @Prop({ required: true })
-    description: string;
+  @Prop({ required: true })
+  description: string;
 
-    @Prop({ default: false })
-    isFeature?: boolean;
+  @Prop({ default: false })
+  isFeature?: boolean;
 
-    @Prop({ default: false })
-    isSupport?: boolean;
+  @Prop({ default: false })
+  isSupport?: boolean;
 
-    @Prop({ default: true })
-    isActive?: boolean;
+  @Prop({ default: true })
+  isActive?: boolean;
 
-    @Prop({ default: false })
-    deleted?: boolean;
+  @Prop({ default: false })
+  deleted?: boolean;
 
-    @Prop()
-    deletedAt?: Date;
+  @Prop()
+  deletedAt?: Date;
 
-    @Prop()
-    deletedBy?: string;
+  @Prop()
+  deletedBy?: string;
 
-    @Prop()
-    editedAt?: Date;
+  @Prop()
+  editedAt?: Date;
 
-    @Prop()
-    editedBy?: string;
+  @Prop()
+  editedBy?: string;
 
-    @Prop({ default: Date.now })
-    createdAt: Date;
+  @Prop({ default: Date.now })
+  createdAt: Date;
 
-    @Prop({ required: true })
-    createdBy: string;
+  @Prop({ required: true })
+  createdBy: string;
 
-    @Prop()
-    event?: string;
+  @Prop()
+  event?: string;
 }
 
 export const FeedbackSchema = SchemaFactory.createForClass(Feedback);

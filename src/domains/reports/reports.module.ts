@@ -6,14 +6,14 @@ import { ReportsService } from './reports.service';
 import { Report, ReportSchema } from './schemas/report.schema';
 
 @Module({
-    imports: [MongooseModule.forFeature([{ name: Report.name, schema: ReportSchema }])],
-    controllers: [ReportsController],
-    providers: [ReportsService],
+  imports: [
+    MongooseModule.forFeature([{ name: Report.name, schema: ReportSchema }]),
+  ],
+  controllers: [ReportsController],
+  providers: [ReportsService],
 })
 export class ReportsModule implements NestModule {
-    configure(consumer: MiddlewareConsumer) {
-        consumer
-            .apply(AuthMiddleware)
-            .forRoutes(ReportsController);
-    }
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(AuthMiddleware).forRoutes(ReportsController);
+  }
 }

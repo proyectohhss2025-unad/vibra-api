@@ -1,8 +1,8 @@
 export const config = {
   development: {
-    apiConfig: "http://localhost:3001/api/config",
+    apiConfig: 'http://localhost:3001/api/config',
   },
   production: {
-    apiConfig: "https://vibra.co/api/config",
+    apiConfig: 'https://vibra.co/api/config',
   },
 };

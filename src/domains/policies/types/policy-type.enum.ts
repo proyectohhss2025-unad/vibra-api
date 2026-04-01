@@ -1,5 +1,5 @@
 export enum PolicyType {
-    PRIVACY = 'privacy',
-    TERMS = 'terms',
-    COOKIES = 'cookies'
+  PRIVACY = 'privacy',
+  TERMS = 'terms',
+  COOKIES = 'cookies',
 }

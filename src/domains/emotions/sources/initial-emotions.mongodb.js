@@ -1,5 +1,5 @@
 // MongoDB Playground
-use("vibra");
+use("vibra_db");
 
 // Create emotions collection if it doesn't exist
 db.createCollection("emotions");

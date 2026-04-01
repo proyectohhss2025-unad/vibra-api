@@ -1,31 +1,51 @@
-import { IsArray, IsBoolean, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import {
+  IsArray,
+  IsBoolean,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+} from 'class-validator';
 
 export class CreateConfigDto {
-    @IsString()
-    @IsNotEmpty()
-    name: string;
+  @ApiProperty({ description: 'Nombre único de la configuración.', example: 'FEATURE_PRETEST' })
+  @IsString()
+  @IsNotEmpty()
+  name: string;
 
-    @IsString()
-    @IsOptional()
-    description?: string;
+  @ApiPropertyOptional({ description: 'Descripción de la configuración.', example: 'Habilita el módulo de pretest.' })
+  @IsString()
+  @IsOptional()
+  description?: string;
 
-    @IsBoolean()
-    @IsNotEmpty()
-    flag: boolean;
+  @ApiProperty({ description: 'Valor de la bandera (feature flag).', example: true })
+  @IsBoolean()
+  @IsNotEmpty()
+  flag: boolean;
 
-    @IsArray()
-    @IsOptional()
-    allowedUsers?: string[];
+  @ApiPropertyOptional({
+    description: 'Lista de usuarios permitidos (ids o usernames, según implementación).',
+    example: ['admin', 'user.demo'],
+  })
+  @IsArray()
+  @IsOptional()
+  allowedUsers?: string[];
 
-    @IsArray()
-    @IsOptional()
-    disallowedUsers?: string[];
+  @ApiPropertyOptional({
+    description: 'Lista de usuarios no permitidos.',
+    example: ['blocked.user'],
+  })
+  @IsArray()
+  @IsOptional()
+  disallowedUsers?: string[];
 
-    @IsString()
-    @IsOptional()
-    createdBy?: string;
+  @ApiPropertyOptional({ description: 'Usuario que crea.', example: 'seed' })
+  @IsString()
+  @IsOptional()
+  createdBy?: string;
 
-    @IsString()
-    @IsOptional()
-    editedBy?: string;
+  @ApiPropertyOptional({ description: 'Usuario que edita.', example: 'admin' })
+  @IsString()
+  @IsOptional()
+  editedBy?: string;
 }

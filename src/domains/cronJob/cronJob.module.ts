@@ -7,18 +7,16 @@ import { CronJobService } from './cronJob.service';
 import { CronJob, CronJobSchema } from './schemas/cronJob.schema';
 
 @Module({
-    imports: [
-        MongooseModule.forFeature([{ name: CronJob.name, schema: CronJobSchema }]),
-        NotificationModule,
-    ],
-    controllers: [CronJobController],
-    providers: [CronJobService],
-    exports: [CronJobService],
+  imports: [
+    MongooseModule.forFeature([{ name: CronJob.name, schema: CronJobSchema }]),
+    NotificationModule,
+  ],
+  controllers: [CronJobController],
+  providers: [CronJobService],
+  exports: [CronJobService],
 })
 export class CronJobModule implements NestModule {
-    configure(consumer: MiddlewareConsumer) {
-        consumer
-            .apply(AuthMiddleware)
-            .forRoutes(CronJobController);
-    }
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(AuthMiddleware).forRoutes(CronJobController);
+  }
 }

@@ -1,5 +1,5 @@
 export class CreateReportDto {
-    reportName: string;
-    reportType: 'PDF' | 'Excel';
-    createdBy: string;
+  reportName: string;
+  reportType: 'PDF' | 'Excel';
+  createdBy: string;
 }

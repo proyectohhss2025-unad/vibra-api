@@ -4,12 +4,12 @@ import { UserSession, UserSessionSchema } from './schemas/userSession.schema';
 import { UserSessionsService } from './userSessions.service';
 
 @Module({
-    imports: [
-        MongooseModule.forFeature([
-            { name: UserSession.name, schema: UserSessionSchema },
-        ]),
-    ],
-    providers: [UserSessionsService],
-    exports: [MongooseModule, UserSessionsService],
+  imports: [
+    MongooseModule.forFeature([
+      { name: UserSession.name, schema: UserSessionSchema },
+    ]),
+  ],
+  providers: [UserSessionsService],
+  exports: [MongooseModule, UserSessionsService],
 })
-export class UserSessionsModule { }
+export class UserSessionsModule {}

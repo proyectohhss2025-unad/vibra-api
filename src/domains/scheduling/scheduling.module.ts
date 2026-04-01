@@ -4,11 +4,8 @@ import { WeeklyScheduler } from './weekly-scheduler.service';
 import { ActivitiesModule } from '../activities/activities.module';
 
 @Module({
-    imports: [
-        ScheduleModule.forRoot(),
-        ActivitiesModule
-    ],
-    providers: [WeeklyScheduler],
-    exports: [WeeklyScheduler]
+  imports: [ScheduleModule.forRoot(), ActivitiesModule],
+  providers: [WeeklyScheduler],
+  exports: [WeeklyScheduler],
 })
-export class SchedulingModule { }
+export class SchedulingModule {}

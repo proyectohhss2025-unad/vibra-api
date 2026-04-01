@@ -1,8 +1,8 @@
-import log4js from "log4js";
-import moment from "moment";
-import "moment-timezone";
+import log4js from 'log4js';
+import moment from 'moment';
+import 'moment-timezone';
 
-declare module "moment" {
+declare module 'moment' {
   interface Moment {
     tz: {
       setDefault(timezone: string): void;
@@ -10,7 +10,7 @@ declare module "moment" {
   }
 }
 
-const logger = log4js.getLogger("default");
+const logger = log4js.getLogger('default');
 
 //moment.tz.setDefault("America/Bogota");
 
@@ -43,19 +43,33 @@ export const validateDate = (
     };
   }
 
-  return { respDate: true, msg: "Validation success" };
+  return { respDate: true, msg: 'Validation success' };
 };
 
 export function convertDateToDateMongoose(fechaString: string): Date {
   // Validar si la cadena de fecha tiene el formato correcto
-  if (!/^\d{2}\/\d{2}\/\d{4}$/.test(fechaString) && !/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(fechaString) &&
-    !/^\d{4}\/\d{2}\/\d{2}$/.test(fechaString) && !/^\d{4}\/\d{1,2}\/\d{1,2}$/.test(fechaString) &&
-    !/^\d{4}\-\d{2}\-\d{2}$/.test(fechaString) && !/^\d{4}\-\d{1,2}\-\d{1,2}$/.test(fechaString)) {
-    throw new Error('Formato de fecha inválido. Debe ser DD/MM/YYYY o D/M/YYYY o YYYY/MM/DD');
+  if (
+    !/^\d{2}\/\d{2}\/\d{4}$/.test(fechaString) &&
+    !/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(fechaString) &&
+    !/^\d{4}\/\d{2}\/\d{2}$/.test(fechaString) &&
+    !/^\d{4}\/\d{1,2}\/\d{1,2}$/.test(fechaString) &&
+    !/^\d{4}\-\d{2}\-\d{2}$/.test(fechaString) &&
+    !/^\d{4}\-\d{1,2}\-\d{1,2}$/.test(fechaString)
+  ) {
+    throw new Error(
+      'Formato de fecha inválido. Debe ser DD/MM/YYYY o D/M/YYYY o YYYY/MM/DD',
+    );
   }
 
   // Convertir la cadena de fecha a un objeto de fecha de JavaScript
-  const fecha = moment(fechaString, ['DD/MM/YYYY', 'D/M/YYYY', 'YYYY/MM/DD', 'YYYY/M/D', 'YYYY-MM-DD', 'YYYY-M-D']);
+  const fecha = moment(fechaString, [
+    'DD/MM/YYYY',
+    'D/M/YYYY',
+    'YYYY/MM/DD',
+    'YYYY/M/D',
+    'YYYY-MM-DD',
+    'YYYY-M-D',
+  ]);
 
   // Validar si la conversión fue exitosa
   if (!fecha.isValid()) {
@@ -65,7 +79,6 @@ export function convertDateToDateMongoose(fechaString: string): Date {
   // Devolver el objeto de fecha de JavaScript (que MongoDB entenderá)
   return fecha.toDate();
 }
-
 
 // Ejemplo de uso:
 // const fechaParaGuardar = convertirFechaAMongoose('10/01/2024');

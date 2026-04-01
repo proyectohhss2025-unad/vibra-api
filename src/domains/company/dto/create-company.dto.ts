@@ -1,47 +1,53 @@
-import { IsString, IsOptional, IsBoolean, IsObject, IsNumber } from 'class-validator';
+import {
+  IsString,
+  IsOptional,
+  IsBoolean,
+  IsObject,
+  IsNumber,
+} from 'class-validator';
 import { Types } from 'mongoose';
 
 export class CreateCompanyDto {
-    @IsString()
+  @IsString()
+  name: string;
+
+  @IsString()
+  @IsOptional()
+  slogan?: string;
+
+  @IsString()
+  nit: string;
+
+  @IsString()
+  address: string;
+
+  @IsString()
+  email: string;
+
+  @IsNumber()
+  phoneNumber: number;
+
+  @IsObject()
+  managerData: {
     name: string;
-
-    @IsString()
-    @IsOptional()
-    slogan?: string;
-
-    @IsString()
-    nit: string;
-
-    @IsString()
-    address: string;
-
-    @IsString()
+    documentType: Types.ObjectId;
+    document: string;
     email: string;
+    phoneNumber: string;
+  };
 
-    @IsNumber()
-    phoneNumber: number;
+  @IsString()
+  @IsOptional()
+  seriesCurrentBillingRange?: string;
 
-    @IsObject()
-    managerData: {
-        name: string;
-        documentType: Types.ObjectId;
-        document: string;
-        email: string;
-        phoneNumber: string;
-    };
+  @IsString()
+  createdBy: string;
 
-    @IsString()
-    @IsOptional()
-    seriesCurrentBillingRange?: string;
+  @IsBoolean()
+  @IsOptional()
+  isMain?: boolean;
 
-    @IsString()
-    createdBy: string;
-
-    @IsBoolean()
-    @IsOptional()
-    isMain?: boolean;
-
-    @IsString()
-    @IsOptional()
-    userAdmin?: string;
+  @IsString()
+  @IsOptional()
+  userAdmin?: string;
 }

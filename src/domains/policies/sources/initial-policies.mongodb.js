@@ -2,7 +2,7 @@
 // Use Ctrl+Space inside a snippet or a string literal to trigger completions.
 
 // The current database to use.
-use("vibra");
+use("vibra_db");
 
 // Create policies collection if it doesn't exist
 db.createCollection("policies");

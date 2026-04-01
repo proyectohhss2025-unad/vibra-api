@@ -6,15 +6,15 @@ import { Logger, LoggerSchema } from './schemas/logger.schema';
 import { AuthMiddleware } from 'src/infrastructure/auth/auth.middleware';
 
 @Module({
-    imports: [MongooseModule.forFeature([{ name: Logger.name, schema: LoggerSchema }])],
-    controllers: [LoggerController],
-    providers: [LoggerService],
-    exports: [LoggerService],
+  imports: [
+    MongooseModule.forFeature([{ name: Logger.name, schema: LoggerSchema }]),
+  ],
+  controllers: [LoggerController],
+  providers: [LoggerService],
+  exports: [LoggerService],
 })
 export class LoggerModule implements NestModule {
-    configure(consumer: MiddlewareConsumer) {
-        consumer
-            .apply(AuthMiddleware)
-            .forRoutes(LoggerController);
-    }
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(AuthMiddleware).forRoutes(LoggerController);
+  }
 }
