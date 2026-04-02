@@ -19,7 +19,7 @@ export class CompanyService {
   constructor(
     @InjectModel(Company.name) private companyModel: Model<Company>,
     @InjectModel(User.name) private userModel: Model<User>,
-  ) {}
+  ) { }
 
   /**
    * Create a new company
@@ -165,10 +165,6 @@ export class CompanyService {
     try {
       const companies = await this.companyModel
         .find()
-        .populate({
-          path: 'userAdmin',
-          model: 'User',
-        })
         .skip(rows * (page - 1))
         .limit(rows)
         .sort({ name: 1 });

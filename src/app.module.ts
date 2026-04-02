@@ -31,6 +31,7 @@ import { AppGateway } from './infrastructure/sockets/appGateway.gateway';
 import { EventsGateway } from './infrastructure/sockets/events.gateway';
 import { ThrottlerGuard } from './infrastructure/throttler/throttler.guard';
 import { AppThrottlerModule } from './infrastructure/throttler/throttler.module';
+import { PermissionsModule } from './domains/permissions/permissions.module';
 
 @Module({
   imports: [
@@ -46,27 +47,28 @@ import { AppThrottlerModule } from './infrastructure/throttler/throttler.module'
     AuditLogModule,
     CompanyModule,
     CronJobModule,
-    ParticipantModule,
     FeedbackModule,
     NotificationModule,
     LoggerModule,
     AuthModule,
     UsersModule,
+    ParticipantModule,
     EmotionsModule,
-    RolesModule,
-    FileUploadModule,
     EmailModule,
+    ActivitiesModule,
     PreTestModule,
     PoliciesModule,
-    ActivitiesModule,
+    RolesModule,
+    UserPermissionsModule,
+    PermissionTemplatesModule,
+    PermissionsModule,
+    FileUploadModule,
     RankingModule,
     SchedulingModule,
     AppThrottlerModule,
     ExceptionsModule,
     ConfigModule,
     CronJobModule,
-    UserPermissionsModule,
-    PermissionTemplatesModule,
     TranslateModule,
   ],
   providers: [
@@ -78,4 +80,4 @@ import { AppThrottlerModule } from './infrastructure/throttler/throttler.module'
     },
   ],
 })
-export class AppModule {}
+export class AppModule { }
