@@ -20,6 +20,7 @@ import {
   ApiProperty,
   ApiPropertyOptional,
   ApiQuery,
+  ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
 import { CreateParticipantDto } from './dto/create-participant.dto';
@@ -64,7 +65,7 @@ class ParticipantsListDto {
 @ApiBearerAuth()
 @Controller('api/participants')
 export class ParticipantController {
-  constructor(private readonly participantService: ParticipantService) {}
+  constructor(private readonly participantService: ParticipantService) { }
 
   @Post()
   @ApiOperation({ summary: 'Crear participante' })
@@ -97,6 +98,13 @@ export class ParticipantController {
   @ApiOkResponse({ description: 'Listado de participantes.', type: ParticipantsListDto })
   findAll(@Query() query: any) {
     return this.participantService.findAll(query);
+  }
+
+  @Get('count-all-participants')
+  @ApiOperation({ summary: 'Obtener el número total de participantes' })
+  @ApiResponse({ status: 200, description: 'Número total de participantes obtenido exitosamente' })
+  findCountAll(@Query() query: any) {
+    return this.participantService.getCountAll(query);
   }
 
   @Get('search')

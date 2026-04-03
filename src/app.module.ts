@@ -32,6 +32,7 @@ import { EventsGateway } from './infrastructure/sockets/events.gateway';
 import { ThrottlerGuard } from './infrastructure/throttler/throttler.guard';
 import { AppThrottlerModule } from './infrastructure/throttler/throttler.module';
 import { PermissionsModule } from './domains/permissions/permissions.module';
+import { DocumentTypeModule } from './domains/documentType/documentType.module';
 
 @Module({
   imports: [
@@ -70,6 +71,7 @@ import { PermissionsModule } from './domains/permissions/permissions.module';
     ConfigModule,
     CronJobModule,
     TranslateModule,
+    DocumentTypeModule,
   ],
   providers: [
     EventsGateway,

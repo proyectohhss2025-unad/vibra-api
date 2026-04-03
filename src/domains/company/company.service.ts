@@ -188,6 +188,10 @@ export class CompanyService {
     }
   }
 
+  async getCountAll(query: any) {
+    return this.companyModel.countDocuments(query).exec();
+  }
+
   /**
    * Update a company
    * @param updateCompanyDto - Data for updating the company

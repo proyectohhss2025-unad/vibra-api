@@ -12,7 +12,7 @@ export class ParticipantService {
   constructor(
     @InjectModel(Participant.name)
     private participantModel: Model<Participant>,
-  ) {}
+  ) { }
 
   async create(createParticipantDto: CreateParticipantDto) {
     const existingParticipant = await this.participantModel.findOne({
@@ -84,6 +84,10 @@ export class ParticipantService {
         .sort({ name: 1 }),
       count: await this.participantModel.countDocuments(filter),
     };
+  }
+
+  async getCountAll(query: any) {
+    return this.participantModel.countDocuments(query).exec();
   }
 
   async search(searchTerm: string) {

@@ -1,16 +1,59 @@
-import { IsNotEmpty, IsString, IsOptional, IsBoolean } from 'class-validator';
+import { IsNotEmpty, IsString, IsOptional, IsBoolean, IsNumber, IsObject, ValidateNested } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
+
+class ParticipantPreferencesDto {
+  @ApiProperty({ description: 'Idioma preferido del participante.', example: 'Spanish' })
+  @IsString()
+  @IsNotEmpty()
+  language: string;
+
+  @ApiProperty({ description: 'Indica si tiene activadas las notificaciones.', example: true })
+  @IsBoolean()
+  notifications: boolean;
+}
 
 export class CreateParticipantDto {
-  @ApiProperty({ description: 'Nombre del participante.', example: 'Institución Demo' })
+
+  @ApiPropertyOptional({ description: 'ID del participante.', example: '65f1a2b3c4d5e6f7' })
+  @IsString()
+  @IsOptional()
+  _id?: string;
+
+  @ApiProperty({ description: 'ID del usuario asociado.', example: '65f1a2b3c4d5e6f7' })
+  @IsString()
+  @IsNotEmpty()
+  userId: string;
+
+  @ApiProperty({ description: 'Nombre completo o institucional.', example: 'Institución Demo' })
   @IsString()
   @IsNotEmpty()
   name: string;
 
-  @ApiProperty({ description: 'NIT del participante.', example: '900123456-7' })
+  @ApiProperty({ description: 'Nombre de usuario o apodo del participante.', example: 'vibrandor_01' })
+  @IsString()
+  @IsNotEmpty()
+  nickname: string;
+
+  @ApiProperty({ description: 'NIT del participante (si aplica).', example: '900123456-7' })
   @IsString()
   @IsNotEmpty()
   nit: string;
+
+  @ApiPropertyOptional({ description: 'Puntos acumulados del participante.', example: 100 })
+  @IsNumber()
+  @IsOptional()
+  points?: number;
+
+  @ApiPropertyOptional({
+    description: 'Preferencias de la aplicación.',
+    type: ParticipantPreferencesDto
+  })
+  @IsOptional()
+  @IsObject()
+  @ValidateNested()
+  @Type(() => ParticipantPreferencesDto)
+  preferences?: ParticipantPreferencesDto;
 
   @ApiPropertyOptional({ description: 'Código EPS (si aplica).', example: 'EPS001' })
   @IsString()
@@ -56,12 +99,14 @@ export class CreateParticipantDto {
     phoneNumber: string;
   };
 
-  @ApiPropertyOptional({ description: 'Límite de crédito (si aplica).', example: 0 })
-  @IsOptional()
-  creditLimit?: number;
-
   @ApiPropertyOptional({ description: 'Indica si es particular.', example: false })
   @IsBoolean()
   @IsOptional()
   isParticular?: boolean;
+
+  @ApiPropertyOptional({ description: 'Avatar del participante.', example: 'avatar.png' })
+  @IsString()
+  @IsOptional()
+  avatar?: string;
 }
+

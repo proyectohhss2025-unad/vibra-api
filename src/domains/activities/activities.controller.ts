@@ -115,7 +115,7 @@ class ActivitiesPaginatedDto {
 @ApiBearerAuth()
 @Controller('api/activities')
 export class ActivitiesController {
-  constructor(private readonly activitiesService: ActivitiesService) {}
+  constructor(private readonly activitiesService: ActivitiesService) { }
 
   @Post()
   @ApiOperation({
@@ -163,6 +163,25 @@ export class ActivitiesController {
       userId,
       emotion == 'all' ? {} : { emotion },
     );
+  }
+
+  @Get('count-all-activities')
+  @ApiOperation({
+    summary: 'Obtener el número total de actividades',
+    description:
+      'Obtiene el número total de actividades registradas.',
+  })
+  @ApiOkResponse({
+    description: 'Número total de actividades obtenidas exitosamente.',
+    schema: {
+      type: 'object',
+      properties: {
+        count: { type: 'number', example: 120 },
+      },
+    },
+  })
+  findCountAll(@Query() query: any) {
+    return this.activitiesService.getCountAll(query);
   }
 
   @Get('all')

@@ -9,16 +9,16 @@ import { PreTest, TestDocument } from './schemas/preTest.schema';
 export class PreTestService {
   constructor(
     @InjectModel(PreTest.name) private preTestModel: Model<TestDocument>,
-  ) {}
+  ) { }
 
   async create(createTestDto: CreatePreTestDto): Promise<PreTest> {
     const totalScore =
       typeof createTestDto.totalScore === 'number'
         ? createTestDto.totalScore
         : (createTestDto.responses || []).reduce(
-            (sum: number, response: any) => sum + (response.points || 0),
-            0,
-          );
+          (sum: number, response: any) => sum + (response.points || 0),
+          0,
+        );
 
     const test = new this.preTestModel({
       ...createTestDto,
@@ -37,6 +37,10 @@ export class PreTestService {
       this.preTestModel.countDocuments(),
     ]);
     return { data, total };
+  }
+
+  async getCountAll(query: any) {
+    return this.preTestModel.countDocuments(query).exec();
   }
 
   /*

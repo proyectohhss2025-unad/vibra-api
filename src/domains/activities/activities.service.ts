@@ -18,7 +18,7 @@ export class ActivitiesService {
     @InjectModel(UserResponse.name)
     private userResponseModel: Model<UserResponse>,
     private readonly logger: AppLoggerService,
-  ) {}
+  ) { }
 
   async create(createActivityDto: CreateActivityDto): Promise<Activity> {
     const createdActivity = new this.activityModel(createActivityDto);
@@ -54,11 +54,11 @@ export class ActivitiesService {
       this.activityModel.countDocuments(baseQuery).exec(),
       userId
         ? this.userResponseModel
-            .find({ user: new Types.ObjectId(userId) })
-            .populate('activity')
-            .populate('user')
-            .lean()
-            .exec()
+          .find({ user: new Types.ObjectId(userId) })
+          .populate('activity')
+          .populate('user')
+          .lean()
+          .exec()
         : Promise.resolve([]),
     ]);
     //console.log('userResponse: ', userResponse);
@@ -71,6 +71,9 @@ export class ActivitiesService {
     };
   }
 
+  async getCountAll(query: any) {
+    return this.activityModel.countDocuments(query).exec();
+  }
   async findById(id: string): Promise<Activity> {
     return this.activityModel.findById(id).exec();
   }

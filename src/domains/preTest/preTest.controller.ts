@@ -63,7 +63,7 @@ class PreTestsPaginatedDto {
 @ApiTags('PreTest')
 @Controller('api/pretests')
 export class PreTestController {
-  constructor(private readonly preTestService: PreTestService) {}
+  constructor(private readonly preTestService: PreTestService) { }
 
   /**
    * Create a new pre-test
@@ -95,6 +95,25 @@ export class PreTestController {
   @ApiOkResponse({ type: PreTestsPaginatedDto })
   findAll(@Query('page') page: number, @Query('limit') limit: number) {
     return this.preTestService.findAll(page, limit);
+  }
+
+  @Get('count-all-pretests')
+  @ApiOperation({
+    summary: 'Obtener el número total de pretests',
+    description:
+      'Obtiene el número total de pretests registrados.',
+  })
+  @ApiOkResponse({
+    description: 'Número total de pretests obtenido exitosamente.',
+    schema: {
+      type: 'object',
+      properties: {
+        count: { type: 'number', example: 120 },
+      },
+    },
+  })
+  findCountAll(@Query() query: any) {
+    return this.preTestService.getCountAll(query);
   }
 
   /**

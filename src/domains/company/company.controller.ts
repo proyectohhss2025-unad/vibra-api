@@ -16,7 +16,7 @@ import { ApiTags, ApiOperation, ApiBody, ApiResponse, ApiQuery } from '@nestjs/s
 @ApiTags('Company')
 @Controller('api/company')
 export class CompanyController {
-  constructor(private readonly companyService: CompanyService) {}
+  constructor(private readonly companyService: CompanyService) { }
 
   /**
    * Create a new company
@@ -48,12 +48,19 @@ export class CompanyController {
     return this.companyService.findAll(Number.parseInt(page), parseInt(rows));
   }
 
+  @Get('count-all-companies')
+  @ApiOperation({ summary: 'Obtener el número total de compañías' })
+  @ApiResponse({ status: 200, description: 'Número total de compañías obtenido exitosamente' })
+  async findCountAll(@Query() query: any) {
+    return this.companyService.getCountAll(query);
+  }
+
   /**
    * Get a company by ID
    * @param id - Company ID
    */
   @ApiOperation({ summary: 'Obtener una compañía por ID' })
-  @ApiBody({ 
+  @ApiBody({
     schema: {
       type: 'object',
       properties: {
@@ -85,7 +92,7 @@ export class CompanyController {
    * @param name - Company name
    */
   @ApiOperation({ summary: 'Obtener una compañía por nombre' })
-  @ApiBody({ 
+  @ApiBody({
     schema: {
       type: 'object',
       properties: {
@@ -123,7 +130,7 @@ export class CompanyController {
    * @param id - Company ID
    */
   @ApiOperation({ summary: 'Eliminar una compañía por ID' })
-  @ApiBody({ 
+  @ApiBody({
     schema: {
       type: 'object',
       properties: {
@@ -170,7 +177,7 @@ export class CompanyController {
    * @param editedBy - User who edited the company
    */
   @ApiOperation({ summary: 'Establecer una compañía como activa o inactiva' })
-  @ApiBody({ 
+  @ApiBody({
     schema: {
       type: 'object',
       properties: {

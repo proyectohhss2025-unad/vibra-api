@@ -122,14 +122,22 @@ export class UsersService {
     return await this.userModel
       .find()
       .populate('role')
+      .populate('documentType')
+      .populate('company')
       /*.populate({
                 path: 'course',
                 populate: {
                     path: 'hightSchool'
                 }
             })*/
+      .select('-password')
       .exec();
   }
+
+  async getCountAll(query: any) {
+    return this.userModel.countDocuments(query).exec();
+  }
+
   /**
    * @returns User[]
    */
@@ -138,12 +146,15 @@ export class UsersService {
       data: await this.userModel
         .find()
         .populate({ path: 'role' })
+        .populate({ path: 'documentType' })
+        .populate({ path: 'company' })
         /*.populate({
                     path: 'course',
                     populate: {
                         path: 'hightSchool'
                     }
                 })*/
+        .select('-password')
         .exec(),
       total: await this.userModel.countDocuments().exec(),
     };
@@ -166,7 +177,7 @@ export class UsersService {
         select: '_id name',
       })
       .select(
-        'name username password documentNumber documentType address phoneNumber email keepSessionActive role company avatar gender birthDate isLogged totalScore serial',
+        'name username -password documentNumber documentType address phoneNumber email keepSessionActive role company avatar gender birthDate isLogged totalScore serial',
       )
       .exec();
 
@@ -190,11 +201,12 @@ export class UsersService {
       .populate({
         path: 'company',
         select:
-          '-modules -managerData -userAdmin -address -email -phoneNumber -seriesCurrentBillingRange -editedBy -isMain',
+          '-modules -managerData -userAdmin -address -email -phoneNumber -editedBy -isMain',
       })
+      .select('-password')
       .exec();
   }
- 
+
   /**
    * @param email
    * @param password

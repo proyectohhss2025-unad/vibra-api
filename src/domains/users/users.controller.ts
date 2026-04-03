@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
 import {
   ApiBody,
   ApiCreatedResponse,
@@ -167,7 +167,7 @@ export class UsersController {
     private readonly usersService: UsersService,
     private readonly eventsGateway: EventsGateway,
     private readonly jwtService: JwtService,
-  ) {}
+  ) { }
 
   @Get('trigger')
   @ApiOperation({
@@ -259,6 +259,25 @@ export class UsersController {
     return this.usersService.findAll();
   }
 
+  @Get('count-all-users')
+  @ApiOperation({
+    summary: 'Obtener el número total de usuarios',
+    description:
+      'Obtiene el número total de usuarios registrados.',
+  })
+  @ApiOkResponse({
+    description: 'Número total de usuarios obtenido exitosamente.',
+    schema: {
+      type: 'object',
+      properties: {
+        count: { type: 'number', example: 120 },
+      },
+    },
+  })
+  findCountAll(@Query() query: any) {
+    return this.usersService.getCountAll(query);
+  }
+
   @Get('allPaginate')
   @ApiOperation({
     summary: 'Listar usuarios con paginación (respuesta encapsulada)',
@@ -293,5 +312,13 @@ export class UsersController {
   })
   async findOne(@Param('username') username: string) {
     return this.usersService.findByUsername(username);
+  }
+
+  @Get('id/:id')
+  @ApiOperation({ summary: 'Obtener usuario por id' })
+  @ApiParam({ name: 'id', description: 'ID del usuario.' })
+  @ApiOkResponse({ description: 'Usuario encontrado.', type: UserDto })
+  async findOneById(@Param('id') id: string) {
+    return this.usersService.findByOne({ _id: id });
   }
 }
