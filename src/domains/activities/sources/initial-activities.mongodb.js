@@ -13,6 +13,7 @@ const activitiesData = [
         id: '1',
         emotion: new ObjectId('67d22641649286446e0e8477'),
         title: 'Felicidad',
+        description: 'Actividad para expresar felicidad y bienestar',
         resources: [
             {
                 type: 'video',
@@ -79,6 +80,7 @@ const activitiesData = [
         id: '2',
         emotion: new ObjectId('67d22641649286446e0e8478'),
         title: 'Tristeza',
+        description: 'Actividad para notar tristeza en el participante',
         resources: [
             {
                 type: 'audio',
@@ -113,6 +115,7 @@ const activitiesData = [
         id: '3',
         emotion: new ObjectId('67d22641649286446e0e847b'),
         title: 'Ansiedad',
+        description: 'Actividad para notar ansiedad en el participante',
         resources: [
             {
                 type: 'video',

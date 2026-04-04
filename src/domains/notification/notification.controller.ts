@@ -21,11 +21,53 @@ import {
   ApiProperty,
   ApiPropertyOptional,
   ApiQuery,
+  ApiResponse,
   ApiTags
 } from '@nestjs/swagger';
 import { CreateNotificationDto } from './dto/create-notification.dto';
 import { UpdateNotificationDto } from './dto/update-notification.dto';
 import { NotificationService } from './notification.service';
+import { NotificationTypeStatsDto } from './dto/notification-type-stats.dto';
+import { MonthlyNotificationStatsDto } from './dto/monthly-notification-stats.dto';
+
+class UserDto {
+  @ApiProperty()
+  _id: string;
+
+  @ApiProperty()
+  name: string;
+
+  @ApiProperty()
+  username: string;
+
+  @ApiProperty()
+  email: string;
+}
+
+class NotificationTypeDto {
+  @ApiProperty()
+  _id: string;
+
+  @ApiProperty()
+  title: string;
+
+  @ApiPropertyOptional()
+  description?: string;
+
+  @ApiPropertyOptional()
+  level?: number;
+}
+
+class NotificationChannelDto {
+  @ApiProperty()
+  _id: string;
+
+  @ApiProperty()
+  title: string;
+
+  @ApiPropertyOptional()
+  description?: string;
+}
 
 class NotificationDto {
   @ApiProperty()
@@ -43,17 +85,15 @@ class NotificationDto {
   @ApiProperty()
   isRead?: boolean;
 
-  @ApiPropertyOptional()
-  user?: string;
+  @ApiPropertyOptional({ type: () => UserDto })
+  user?: UserDto | string;
 
-  @ApiPropertyOptional()
-  participant?: string;
+  @ApiProperty({ type: () => NotificationTypeDto })
+  notificationType: NotificationTypeDto | string;
 
-  @ApiProperty()
-  notificationType: string;
 
-  @ApiProperty()
-  notificationChannel: string;
+  @ApiProperty({ type: () => NotificationChannelDto })
+  notificationChannel: NotificationChannelDto | string;
 
   @ApiProperty()
   priority: number;
@@ -65,21 +105,37 @@ class NotificationDto {
   isActive?: boolean;
 
   @ApiPropertyOptional()
+  deleted?: boolean;
+
+  @ApiPropertyOptional()
   createdBy?: string;
+
+  @ApiPropertyOptional()
+  createdAt?: string;
+
+  @ApiPropertyOptional()
+  updatedAt?: string;
+
+  @ApiPropertyOptional()
+  editedBy?: string;
+
+  @ApiPropertyOptional()
+  editedAt?: string;
 }
 
 class NotificationsPaginatedDto {
   @ApiProperty({ type: [NotificationDto] })
-  data: NotificationDto[];
+  notifications: NotificationDto[];
 
   @ApiProperty()
-  total: number;
+  length: number;
 }
+
 
 @ApiTags('Notifications')
 @Controller('api/notifications')
 export class NotificationController {
-  constructor(private readonly notificationService: NotificationService) {}
+  constructor(private readonly notificationService: NotificationService) { }
 
   @Post()
   @ApiOperation({ summary: 'Crear notificación' })
@@ -97,14 +153,23 @@ export class NotificationController {
     return this.notificationService.createMany(createNotificationDtos);
   }
 
-  @Get()
-  @ApiOperation({ summary: 'Listar notificaciones' })
-  @ApiQuery({ name: 'page', required: false, example: 1 })
-  @ApiQuery({ name: 'rows', required: false, example: 10 })
-  @ApiOkResponse({ description: 'Listado de notificaciones.', schema: { type: 'array', items: { type: 'object' } } })
-  async findAll(@Query() query: any) {
-    return this.notificationService.findAll(query);
+  /**
+   * Get all notifications with pagination
+   * @param page - Page number
+   * @param rows - Number of rows per page
+   */
+  @ApiOperation({ summary: 'Obtener todas las notificaciones con paginación' })
+  @ApiQuery({ name: 'page', required: false, description: 'Número de página', example: '1' })
+  @ApiQuery({ name: 'rows', required: false, description: 'Número de filas por página', example: '10' })
+  @ApiResponse({ status: 200, description: 'Lista de notificaciones obtenida exitosamente' })
+  @Get('all')
+  async findAll(
+    @Query('page') page: string = '1',
+    @Query('rows') rows: string = '10',
+  ) {
+    return this.notificationService.getAll({ page, rows });
   }
+
 
   @Get('count-all-notifications')
   @ApiOperation({ summary: 'Contar todas las notificaciones' })
@@ -162,6 +227,11 @@ export class NotificationController {
     return this.notificationService.search(term);
   }
 
+  /**
+  * Marks a notification as read.
+  * @param id The ID of the notification to mark as read.
+  * @returns The updated notification.
+  */
   @Put('read/:id')
   @ApiOperation({ summary: 'Marcar notificación como leída' })
   @ApiParam({ name: 'id', description: 'ID de la notificación.' })
@@ -193,4 +263,19 @@ export class NotificationController {
   async remove(@Param('id') id: string) {
     return this.notificationService.remove(id);
   }
+
+  /**
+   * Retrieves the count of unread notifications for a user.
+   * @param id The ID of the user.
+   * @returns The count of unread notifications.
+   */
+  @Get('unread/count/:id')
+  @ApiOperation({ summary: 'Retrieve the count of unread notifications for a user', description: 'Fetches the count of unread notifications for a specific user.' })
+  @ApiParam({ name: 'id', description: 'The ID of the user', type: 'number' })
+  @ApiResponse({ status: 200, description: 'Successfully retrieved the count of unread notifications.', type: Number })
+  @ApiResponse({ status: 404, description: 'User not found.' })
+  async getUnreadCount(@Param('id') id: number): Promise<number> {
+    return this.notificationService.getUnreadCountByUserId(id);
+  }
+
 }

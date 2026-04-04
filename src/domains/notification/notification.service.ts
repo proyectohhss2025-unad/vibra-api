@@ -26,7 +26,7 @@ export class NotificationService {
     @InjectModel(NotificationChannel.name)
     private notificationChannelModel: Model<NotificationChannel>,
     @InjectModel(User.name) private userModel: Model<User>,
-  ) {}
+  ) { }
 
   async create(createNotificationDto: CreateNotificationDto) {
     const createdNotification = new this.notificationModel(
@@ -170,16 +170,26 @@ export class NotificationService {
   }
 
   async getAll(query: any) {
-    return this.notificationModel
-      .find(query)
-      .populate('user')
+    const { page = 1, rows = 10, ...filters } = query;
+    const skip = (parseInt(page as string) - 1) * parseInt(rows as string);
+    const limit = parseInt(rows as string);
+
+    const notifications = await this.notificationModel
+      .find(filters)
+      .populate('user', '-password')
       .populate('notificationType')
       .populate('notificationChannel')
-      .skip(query.rows * (parseInt(query.page) - 1))
-      .limit(parseInt(query.rows))
+      .skip(skip)
+      .limit(limit)
       .sort({ createdAt: -1 })
       .exec();
+
+    const count = await this.notificationModel.countDocuments(filters);
+
+    return { notifications, length: count };
   }
+
+
 
   async getAllByTitle(title: string, isRead: boolean, query: any) {
     return this.notificationModel
@@ -218,5 +228,13 @@ export class NotificationService {
     notification.editedBy = editedBy;
 
     return notification.save();
+  }
+
+  async getUnreadCountByUserId(id: number): Promise<number> {
+    return this.notificationModel.countDocuments({
+      user: id,
+      isRead: false,
+      isActive: true,
+    });
   }
 }

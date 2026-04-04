@@ -31,14 +31,14 @@ const userPasswordHash =
 const usersData = [
   {
     name: "Administrador Vibra",
-    username: "admin",
+    username: "maya",
     password: adminPasswordHash,
     documentNumber: "6803296",
     documentType: "CC",
     email: "admin@vibra.local",
     keepSessionActive: true,
     role: superAdminRole._id,
-    avatar: "default-admin.png",
+    avatar: "01.png",
     gender: "MALE",
     isLogged: false,
     totalScore: 0,

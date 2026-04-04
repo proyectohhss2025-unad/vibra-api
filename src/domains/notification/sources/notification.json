@@ -1,0 +1,29 @@
+{
+    "_id": {
+        "$oid": "69ccb01ca83606f130228fb5"
+    },
+    "ID": "",
+    "title": "Bienvenida a Vibra",
+    "message": "Bienvenido(a) al dashboard Vibra. Aquí podrás administrar la participación estudiantil, emociones y actividades.",
+    "isRead": false,
+    "user": {
+        "$oid": "69ccafeaf9e973f7dc228fb5"
+    },
+    "notificationType": {
+        "$oid": "673f52025f90c67d7b8c148b"
+    },
+    "notificationChannel": {
+        "$oid": "673f52a05f90c67d7b8c148d"
+    },
+    "priority": 3,
+    "serial": "NOT-0001",
+    "isActive": true,
+    "deleted": false,
+    "createdBy": "seed",
+    "createdAt": {
+        "$date": "2026-04-01T05:41:47.998Z"
+    },
+    "updatedAt": {
+        "$date": "2026-04-01T05:41:47.998Z"
+    }
+}

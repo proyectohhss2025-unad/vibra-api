@@ -177,8 +177,9 @@ export class UsersService {
         select: '_id name',
       })
       .select(
-        'name username -password documentNumber documentType address phoneNumber email keepSessionActive role company avatar gender birthDate isLogged totalScore serial',
+        'name username password documentNumber documentType address phoneNumber email keepSessionActive role company avatar gender birthDate isLogged totalScore serial',
       )
+
       .exec();
 
     if (!user) {
@@ -198,6 +199,7 @@ export class UsersService {
     return this.userModel
       .findOne(query)
       .populate({ path: 'role' })
+      .populate({ path: 'documentType' })
       .populate({
         path: 'company',
         select:
