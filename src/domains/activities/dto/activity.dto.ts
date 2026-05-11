@@ -131,6 +131,16 @@ export class CreateActivityDto {
   @IsOptional()
   @IsNumber()
   difficulty?: number;
+
+  @ApiPropertyOptional({
+    description: 'Tipo de actividad',
+    enum: ['reto', 'evento_personal', 'actividad_pares', 'otro'],
+    example: 'evento_personal',
+    default: 'evento_personal',
+  })
+  @IsOptional()
+  @IsEnum(['reto', 'evento_personal', 'actividad_pares', 'otro'])
+  type?: string;
 }
 
 export class UpdateActivityDto extends CreateActivityDto {

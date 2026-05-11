@@ -115,21 +115,85 @@ export class ActivitiesService {
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
 
-    const activity = await this.activityModel
-      .findOne({
-        isActive: true,
-        $or: [{ createdAt: { $gte: today, $lt: tomorrow } }],
-      })
-      .populate('emotion')
-      .exec();
+    // Normalizar fechas para comparación
+    const todayStr = today.toISOString().split('T')[0];
+    const tomorrowStr = tomorrow.toISOString().split('T')[0];
 
-    this.logger.log(`Getting a new activity...${JSON.stringify(activity)}`);
+    // Buscar actividad donde schedule.date esté en el rango del día
+    const activities = await this.activityModel.aggregate([
+      { $match: { isActive: true } },
+      {
+        $addFields: {
+          scheduleDateStr: {
+            $dateToString: {
+              format: '%Y-%m-%d',
+              date: '$schedule.date',
+              timezone: 'UTC',
+            },
+          },
+        },
+      },
+      {
+        $match: {
+          scheduleDateStr: {
+            $gte: todayStr,
+            $lt: tomorrowStr,
+          },
+        },
+      },
+      { $limit: 1 },
+    ]);
 
+    let activity = activities.length > 0 ? activities[0] : null;
+
+    // Fallback: buscar por createdAt si no hay con schedule.date
+    if (!activity) {
+      const fallback = await this.activityModel
+        .findOne({
+          isActive: true,
+          $or: [
+            { schedule: { $exists: false } },
+            { 'schedule.date': null },
+          ],
+          createdAt: { $gte: today, $lt: tomorrow },
+        })
+        .populate('emotion')
+        .exec();
+
+      if (fallback) {
+        this.logger.log(`Getting today's activity (fallback by createdAt)...`);
+        return {
+          activity: fallback,
+          schedule: {
+            date: today,
+            status: 'active',
+          },
+        };
+      }
+    }
+
+    if (activity) {
+      const populatedActivity = await this.activityModel
+        .findById(activity._id)
+        .populate('emotion')
+        .exec();
+
+      this.logger.log(`Getting today's activity... ${JSON.stringify(populatedActivity)}`);
+      return {
+        activity: populatedActivity,
+        schedule: {
+          date: activity.schedule?.date || today,
+          status: 'active',
+        },
+      };
+    }
+
+    this.logger.log(`No activity found for today`);
     return {
-      activity,
+      activity: null,
       schedule: {
         date: today,
-        status: 'active',
+        status: 'no_activity',
       },
     };
   }
@@ -298,5 +362,55 @@ export class ActivitiesService {
       results,
       totalScore,
     };
+  }
+
+  /**
+   * Find activities by user with optional type filter
+   * @param userId - User ID
+   * @param filters - Optional filters (type, page, limit)
+   * @returns Paginated list of activities for the user
+   */
+  async findByUserId(
+    userId: string,
+    filters: { type?: string; page?: number; limit?: number } = {},
+  ): Promise<{ data: Activity[]; total: number; page: number; limit: number }> {
+    const { type, page = 1, limit = 10 } = filters;
+
+    // Buscar las respuestas del usuario
+    const userResponses = await this.userResponseModel
+      .find({ user: new Types.ObjectId(userId) })
+      .populate('activity')
+      .lean()
+      .exec();
+
+    // Extraer las actividades de las respuestas
+    let activityIds = userResponses
+      .map((ur) => ur.activity?._id)
+      .filter(Boolean);
+
+    // Construir query para actividades
+    const query: any = {
+      _id: { $in: activityIds },
+      isActive: true,
+    };
+
+    if (type) {
+      query.type = type;
+    }
+
+    const skip = (page - 1) * limit;
+
+    const [data, total] = await Promise.all([
+      this.activityModel
+        .find(query)
+        .populate('emotion')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .exec(),
+      this.activityModel.countDocuments(query).exec(),
+    ]);
+
+    return { data, total, page, limit };
   }
 }

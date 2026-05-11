@@ -9,6 +9,7 @@ import { AuditLogModule } from './domains/auditLog/audit-log.module';
 import { AuthModule } from './domains/auth/auth.module';
 import { CompanyModule } from './domains/company';
 import { ConfigModule } from './domains/config/config.module';
+import { CourseModule } from './domains/course/course.module';
 import { CronJobModule } from './domains/cronJob/cronJob.module';
 import { EmotionsModule } from './domains/emotions/emotions.module';
 import { FeedbackModule } from './domains/feedback/feedback.module';
@@ -69,9 +70,9 @@ import { DocumentTypeModule } from './domains/documentType/documentType.module';
     AppThrottlerModule,
     ExceptionsModule,
     ConfigModule,
-    CronJobModule,
     TranslateModule,
     DocumentTypeModule,
+    CourseModule,
   ],
   providers: [
     EventsGateway,

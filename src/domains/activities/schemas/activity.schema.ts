@@ -68,6 +68,14 @@ export class Activity extends Document {
   isActive: boolean;
 
   @Prop({
+    type: String,
+    enum: ['reto', 'evento_personal', 'actividad_pares', 'otro'],
+    default: 'evento_personal',
+    index: true,
+  })
+  type?: string;
+
+  @Prop({
     type: {
       _id: false,
       date: Date,
@@ -89,3 +97,8 @@ export class Activity extends Document {
 }
 
 export const ActivitySchema = SchemaFactory.createForClass(Activity);
+
+// Índices para optimizar consultas
+ActivitySchema.index({ type: 1 });
+ActivitySchema.index({ isActive: 1 });
+ActivitySchema.index({ 'schedule.date': 1 });

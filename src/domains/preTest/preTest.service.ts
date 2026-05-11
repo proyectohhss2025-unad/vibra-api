@@ -49,6 +49,10 @@ export class PreTestService {
     }*/
 
   async update(id: string, updateTestDto: UpdatePreTestDto): Promise<PreTest> {
+    if (!updateTestDto || Object.keys(updateTestDto).length === 0) {
+      throw new NotFoundException('No se proporcionaron datos para actualizar.');
+    }
+
     const updated = await this.preTestModel
       .findByIdAndUpdate(id, { $set: updateTestDto }, { new: true })
       .exec();
@@ -72,19 +76,41 @@ export class PreTestService {
    * @returns
    */
   async savePreTestResponse(testData: any): Promise<PreTest> {
-    const parsedBody =
-      typeof testData === 'string'
-        ? JSON.parse(testData)
-        : typeof testData?.body === 'string'
-          ? JSON.parse(testData.body)
-          : testData;
+    let parsedBody = testData;
+
+    // Parsear si viene como string
+    if (typeof testData === 'string') {
+      try {
+        parsedBody = JSON.parse(testData);
+      } catch (e) {
+        throw new Error('Invalid JSON in request body');
+      }
+    } else if (testData?.body && typeof testData.body === 'string') {
+      try {
+        parsedBody = JSON.parse(testData.body);
+      } catch (e) {
+        throw new Error('Invalid JSON in request body');
+      }
+    }
+
+    // Validar que userId esté presente
+    if (!parsedBody?.userId) {
+      throw new Error('userId es requerido pero no fue proporcionado');
+    }
 
     const responses = parsedBody?.responses || [];
-    const totalScore = responses.reduce(
-      (sum: number, response: any) => sum + (response.points || 0),
-      0,
-    );
-    const test = new this.preTestModel({ ...parsedBody, totalScore });
+    const totalScore =
+      typeof parsedBody?.totalScore === 'number'
+        ? parsedBody.totalScore
+        : responses.reduce(
+            (sum: number, response: any) => sum + (response.points || 0),
+            0,
+          );
+
+    const test = new this.preTestModel({
+      ...parsedBody,
+      totalScore,
+    });
     return test.save();
   }
 

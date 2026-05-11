@@ -9,7 +9,7 @@ export const initialActivities: any[] = [
     resources: [
       {
         type: 'video',
-        url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
+        url: '.videos/vibra.mp4',
         duration: 300,
         metadata: {
           author: 'Jane Doe',
@@ -52,7 +52,7 @@ export const initialActivities: any[] = [
     resources: [
       {
         type: 'audio',
-        url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
+        url: '.videos/vibra.mp4',
         duration: 600,
         metadata: {
           technique: '4-7-8 breathing',
@@ -90,7 +90,7 @@ export const initialActivities: any[] = [
     resources: [
       {
         type: 'video',
-        url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
+        url: '.videos/vibra.mp4',
         duration: 450,
         metadata: {
           category: 'self-care',

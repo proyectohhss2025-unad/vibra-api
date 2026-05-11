@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -265,6 +266,51 @@ export class ActivitiesController {
     return this.activitiesService.getAvailableEmotions();
   }
 
+  @Get('user/:userId')
+  @ApiOperation({
+    summary: 'Listar actividades de un usuario',
+    description:
+      'Retorna las actividades completadas por el usuario, opcionalmente filtradas por tipo.',
+  })
+  @ApiParam({
+    name: 'userId',
+    description: 'ID del usuario',
+    example: '69c4b4fc528c5e1f4ab79d0c',
+  })
+  @ApiQuery({
+    name: 'type',
+    required: false,
+    description: 'Filtrar por tipo de actividad',
+    enum: ['reto', 'evento_personal', 'actividad_pares', 'otro'],
+    example: 'reto',
+  })
+  @ApiQuery({ name: 'page', required: false, description: 'Número de página', example: '1' })
+  @ApiQuery({ name: 'limit', required: false, description: 'Items por página', example: '10' })
+  @ApiOkResponse({
+    description: 'Lista de actividades del usuario',
+    schema: {
+      type: 'object',
+      properties: {
+        data: { type: 'array', items: { type: 'object' } },
+        total: { type: 'number' },
+        page: { type: 'number' },
+        limit: { type: 'number' },
+      },
+    },
+  })
+  async getActivitiesByUser(
+    @Param('userId') userId: string,
+    @Query('type') type?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.activitiesService.findByUserId(userId, {
+      type,
+      page: page ? parseInt(page) : 1,
+      limit: limit ? parseInt(limit) : 10,
+    });
+  }
+
   @Get('daily/current')
   @ApiOperation({
     summary: 'Obtener actividad del día',
@@ -312,11 +358,14 @@ export class ActivitiesController {
     description: 'Resultado del procesamiento de respuestas.',
     schema: { type: 'object' },
   })
-  submitResponse(
+  async submitResponse(
     @Param('id') activityId: string,
     @Param('userId') userId: string,
     @Body() responseDto: ActivityResponseDto,
   ) {
+    if (!userId || userId === 'undefined' || userId === 'null') {
+      throw new BadRequestException('El ID del usuario es requerido en la URL');
+    }
     return this.activitiesService.processResponse(
       userId,
       activityId,
