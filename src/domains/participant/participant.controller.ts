@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   Param,
+  Patch,
   Post,
   Query,
   UploadedFile,
@@ -23,34 +24,70 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { BypassPermission } from 'src/infrastructure/auth/bypass-permission.decorator';
+import { RequirePermission } from 'src/infrastructure/auth/require-permission.decorator';
 import { CreateParticipantDto } from './dto/create-participant.dto';
-import { UpdateParticipantDto } from './dto/update-participant.dto';
+import { UpdateParticipantDto, UpdatePointsDto } from './dto/update-participant.dto';
 import { ParticipantService } from './participant.service';
+
+// ─── DTOs para documentación Swagger ───
 
 class ParticipantDto {
   @ApiProperty({ example: '66c9cce47e6a95e98116c0ab' })
   _id: string;
 
-  @ApiProperty({ example: 'Institución Demo' })
-  name: string;
+  @ApiProperty({ example: '65f1a2b3c4d5e6f7' })
+  userId: string;
 
-  @ApiProperty({ example: '900123456-7' })
-  nit: string;
+  @ApiProperty({ example: 'vibrandor_01' })
+  nickname: string;
 
-  @ApiPropertyOptional({ example: 'EPS001' })
-  epsCode?: string;
+  @ApiPropertyOptional({ example: 'https://...' })
+  avatar?: string;
 
-  @ApiPropertyOptional({ example: 'Calle 123 # 45-67' })
-  address?: string;
+  @ApiProperty({ example: 150 })
+  points: number;
 
-  @ApiPropertyOptional({ example: '3001234567' })
-  phoneNumber?: string;
+  @ApiProperty({ example: 'plata' })
+  level: string;
 
-  @ApiPropertyOptional({ example: 'contacto@institucion.local' })
-  email?: string;
+  @ApiProperty({ example: 5 })
+  currentStreak: number;
 
-  @ApiPropertyOptional({ example: true })
-  isActive?: boolean;
+  @ApiProperty({ example: 12 })
+  maxStreak: number;
+
+  @ApiProperty({ example: 25 })
+  totalActivitiesCompleted: number;
+
+  @ApiPropertyOptional({ example: '2026-05-23T12:00:00Z' })
+  lastActivityDate?: Date;
+
+  @ApiPropertyOptional({ example: '2026-05-23T10:00:00Z' })
+  lastSessionDate?: Date;
+
+  @ApiProperty({ example: true })
+  isActive: boolean;
+}
+
+class UpdatePointsResponseDto {
+  @ApiProperty({ example: 160 })
+  points: number;
+
+  @ApiProperty({ example: 'plata' })
+  level: string;
+
+  @ApiProperty({ example: 5 })
+  currentStreak: number;
+
+  @ApiProperty({ example: 12 })
+  maxStreak: number;
+
+  @ApiProperty({ example: 26 })
+  totalActivitiesCompleted: number;
+
+  @ApiPropertyOptional({ example: '2026-05-23T12:00:00Z' })
+  lastActivityDate?: Date;
 }
 
 class ParticipantsListDto {
@@ -62,19 +99,69 @@ class ParticipantsListDto {
 }
 
 @ApiTags('Participants')
-@ApiBearerAuth()
+@RequirePermission('9')
 @Controller('api/participants')
 export class ParticipantController {
   constructor(private readonly participantService: ParticipantService) { }
 
+  // ─── Crear participante ───
   @Post()
-  @ApiOperation({ summary: 'Crear participante' })
+  @ApiOperation({ summary: 'Crear participante (desde registro de User)' })
   @ApiBody({ type: CreateParticipantDto })
   @ApiCreatedResponse({ description: 'Participante creado.', type: ParticipantDto })
   create(@Body() createParticipantDto: CreateParticipantDto) {
     return this.participantService.create(createParticipantDto);
   }
 
+  // ─── Buscar participante por userId ───
+  @Get('by-user/:userId')
+  @ApiOperation({ summary: 'Obtener participante por userId' })
+  @ApiParam({ name: 'userId', description: 'ID del usuario (User)' })
+  @ApiOkResponse({ description: 'Participante encontrado.', type: ParticipantDto })
+  findByUserId(@Param('userId') userId: string) {
+    return this.participantService.findByUserId(userId);
+  }
+
+  // ─── Actualizar puntos (actividad completada) ───
+  @Patch(':id/points')
+  @ApiOperation({ summary: 'Incrementar puntos y actualizar streak/level al completar actividad' })
+  @ApiParam({ name: 'id', description: 'ID del participante' })
+  @ApiBody({ type: UpdatePointsDto })
+  @ApiOkResponse({ description: 'Puntos actualizados.', type: UpdatePointsResponseDto })
+  updatePoints(
+    @Param('id') id: string,
+    @Body() updatePointsDto: UpdatePointsDto,
+  ) {
+    return this.participantService.updatePoints(id, updatePointsDto);
+  }
+
+  // ─── Historial de actividad por día ───
+  @Get(':id/activity-history')
+  @ApiOperation({ summary: 'Obtener historial de actividades completadas por día' })
+  @ApiParam({ name: 'id', description: 'ID del participante' })
+  @ApiQuery({ name: 'days', required: false, example: 30 })
+  @ApiOkResponse({ description: 'Historial de actividades por día.' })
+  getActivityHistory(
+    @Param('id') id: string,
+    @Query('days') days?: number,
+  ) {
+    return this.participantService.getActivityHistory(id, days ?? 30);
+  }
+
+  // ─── Leaderboard del curso ───
+  @Get('leaderboard')
+  @ApiOperation({ summary: 'Obtener leaderboard de participantes por puntos' })
+  @ApiQuery({ name: 'courseId', required: false, example: '65f1a2b3c4d5e6f7' })
+  @ApiQuery({ name: 'limit', required: false, example: 20 })
+  @ApiOkResponse({ description: 'Leaderboard del curso.' })
+  getLeaderboard(
+    @Query('courseId') courseId?: string,
+    @Query('limit') limit?: number,
+  ) {
+    return this.participantService.getLeaderboard(courseId, limit ?? 20);
+  }
+
+  // ─── Carga masiva CSV (legacy) ───
   @Post('bulk')
   @UseInterceptors(FileInterceptor('file'))
   @ApiOperation({ summary: 'Carga masiva de participantes (CSV)' })
@@ -91,6 +178,7 @@ export class ParticipantController {
     return this.participantService.createMany(file);
   }
 
+  // ─── Listar participantes ───
   @Get()
   @ApiOperation({ summary: 'Listar participantes' })
   @ApiQuery({ name: 'page', required: false, example: 1 })
@@ -100,6 +188,8 @@ export class ParticipantController {
     return this.participantService.findAll(query);
   }
 
+  // ─── Contar todos ───
+  @BypassPermission()
   @Get('count-all-participants')
   @ApiOperation({ summary: 'Obtener el número total de participantes' })
   @ApiResponse({ status: 200, description: 'Número total de participantes obtenido exitosamente' })
@@ -107,6 +197,7 @@ export class ParticipantController {
     return this.participantService.getCountAll(query);
   }
 
+  // ─── Buscar ───
   @Get('search')
   @ApiOperation({ summary: 'Buscar participantes' })
   @ApiQuery({ name: 'searchTerm', required: true, example: 'demo' })
@@ -115,14 +206,16 @@ export class ParticipantController {
     return this.participantService.search(searchTerm);
   }
 
+  // ─── Obtener por _id ───
   @Get(':id')
-  @ApiOperation({ summary: 'Obtener participante por id' })
+  @ApiOperation({ summary: 'Obtener participante por _id' })
   @ApiParam({ name: 'id', description: 'ID del participante.' })
   @ApiOkResponse({ description: 'Participante encontrado.', type: ParticipantDto })
   findOne(@Param('id') id: string) {
     return this.participantService.findOne(id);
   }
 
+  // ─── Actualizar ───
   @Post('update')
   @ApiOperation({ summary: 'Actualizar participante' })
   @ApiBody({ type: UpdateParticipantDto })
@@ -131,6 +224,7 @@ export class ParticipantController {
     return this.participantService.update(updateParticipantDto);
   }
 
+  // ─── Eliminar ───
   @Post('delete')
   @ApiOperation({ summary: 'Eliminar participante' })
   @ApiBody({
@@ -145,6 +239,7 @@ export class ParticipantController {
     return this.participantService.remove(id);
   }
 
+  // ─── Filtrar por fechas (legacy) ───
   @Get('filter')
   @ApiOperation({ summary: 'Listar participantes por rango de fechas' })
   @ApiQuery({ name: 'startDate', required: false, example: '2026-01-01' })
@@ -157,18 +252,16 @@ export class ParticipantController {
     @Query('limit') limit?: number,
   ) {
     const query: any = {};
-
     if (startDate || endDate) {
       query.dateFilter = {};
       if (startDate) query.dateFilter.startDate = new Date(startDate);
       if (endDate) query.dateFilter.endDate = new Date(endDate);
     }
-
     if (limit) query.limit = Number(limit);
-
     return this.participantService.findAll(query);
   }
 
+  // ─── Paginado (legacy) ───
   @Get('paginated')
   @ApiOperation({ summary: 'Listar participantes (paginado)' })
   @ApiQuery({ name: 'page', required: false, example: 1 })
@@ -179,10 +272,8 @@ export class ParticipantController {
     @Query('limit') limit?: number,
   ) {
     const query: any = {};
-
     if (page) query.page = Number(page);
     if (limit) query.rows = Number(limit);
-
     return this.participantService.findAll(query);
   }
 }

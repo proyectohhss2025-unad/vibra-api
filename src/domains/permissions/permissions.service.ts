@@ -11,11 +11,11 @@ export class PermissionsService {
   ) {}
 
   async findAll(): Promise<Permission[]> {
-    return this.permissionModel.find().exec();
+    return this.permissionModel.find().populate('permissionCategory').exec();
   }
 
   async findOne(id: string): Promise<Permission> {
-    return this.permissionModel.findById(id).exec();
+    return this.permissionModel.findById(id).populate('permissionCategory').exec();
   }
 
   async create(permission: Partial<Permission>): Promise<Permission> {

@@ -9,115 +9,91 @@ import {
   OnGatewayConnection,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-import { Redis } from 'ioredis';
-import { UserResponse } from '../userResponses/schemas/userResponse.schema';
-import { User } from '../users/schemas/user.schema';
+import { Participant } from '../participant/schemas/participant.schema';
+
+interface RankingEntry {
+  userId: string;
+  nickname: string;
+  level: string;
+  points: number;
+  avatar?: string;
+  rank?: number;
+}
 
 @Injectable()
 @WebSocketGateway({ namespace: '/rankings' })
 export class RankingService implements OnGatewayConnection {
   @WebSocketServer() server: Server;
-  private redisClient: Redis;
+
+  /** Cache en memoria */
+  private cachedRankings: RankingEntry[] = [];
+  private lastCacheUpdate: Date | null = null;
 
   constructor(
-    @InjectModel(UserResponse.name) private responseModel: Model<UserResponse>,
-    @InjectModel(User.name) private userModel: Model<User>,
-  ) {
-    /*this.redisClient = new Redis({
-            host: process.env.REDIS_HOST,
-            port: parseInt(process.env.REDIS_PORT)
-        });*/
-  }
+    @InjectModel(Participant.name)
+    private participantModel: Model<Participant>,
+  ) {}
 
   async handleConnection(client: Socket) {
-    const initialRankings = await this.getCachedRankings();
-    //client.emit('initialRankings', initialRankings);
+    const rankings = await this.getCachedRankings();
+    client.emit('rankingsUpdate', rankings);
+    client.emit('initialRankings', rankings);
   }
 
   @Cron(CronExpression.EVERY_5_MINUTES)
   async updateRankings() {
-    const rankings = await this.calculateDailyRankings();
-    await this.cacheRankings(rankings);
+    const rankings = await this.calculateLeaderboard();
+    this.cachedRankings = rankings;
+    this.lastCacheUpdate = new Date();
     this.broadcastUpdate(rankings);
   }
 
-  private async calculateDailyRankings() {
-    const startOfDay = new Date();
-    startOfDay.setHours(0, 0, 0, 0);
-
-    const responses = await this.responseModel
-      .find({ createdAt: { $gte: startOfDay } })
-      .populate('user', 'username avatar')
+  private async calculateLeaderboard(): Promise<RankingEntry[]> {
+    const participants = await this.participantModel
+      .find({ isActive: true })
+      .select('userId nickname points level avatar')
+      .sort({ points: -1 })
+      .limit(100)
       .lean();
 
-    const userScores = new Map<string, number>();
-
-    responses.forEach((response: any) => {
-      const score = this.calculateScore(response);
-      const current = userScores.get(response.user._id.toString()) || 0;
-      userScores.set(response.user._id.toString(), current + score);
-    });
-
-    const sortedRankings = Array.from(userScores.entries())
-      .map(([userId, score]) => ({
-        userId,
-        score,
-        username: responses.find((r) => r.user._id.toString() === userId)?.user[
-          'username'
-        ],
-        avatar: responses.find((r) => r.user._id.toString() === userId)?.user[
-          'avatar'
-        ],
-      }))
-      .sort((a, b) => b.score - a.score);
-
-    return sortedRankings;
+    return participants.map((p, index) => ({
+      userId: typeof p.userId === 'object' ? p.userId.toString() : p.userId,
+      nickname: p.nickname || 'participante',
+      level: p.level || 'bronce',
+      points: p.points || 0,
+      avatar: p.avatar,
+      rank: index + 1,
+    }));
   }
 
-  private calculateScore(response: UserResponse): number {
-    const baseScore = response.responses.reduce(
-      (acc, curr) => acc + (curr.isCorrect ? 100 : 0),
-      0,
-    );
-
-    const timeBonus = Math.max(0, 300 - response.timeSpent) * 0.1;
-    const completenessBonus = response.responses.length === 5 ? 50 : 0;
-
-    return baseScore + timeBonus + completenessBonus;
+  async getCachedRankings(): Promise<RankingEntry[]> {
+    if (
+      this.cachedRankings.length === 0 ||
+      !this.lastCacheUpdate ||
+      Date.now() - this.lastCacheUpdate.getTime() > 5 * 60 * 1000
+    ) {
+      const rankings = await this.calculateLeaderboard();
+      this.cachedRankings = rankings;
+      this.lastCacheUpdate = new Date();
+    }
+    return this.cachedRankings;
   }
 
-  private async cacheRankings(rankings: any[]) {
-    await this.redisClient.set(
-      'dailyRankings',
-      JSON.stringify(rankings),
-      'EX',
-      60 * 60 * 24, // 24 horas
-    );
-  }
-
-  async getCachedRankings() {
-    const cached = await this.redisClient.get('dailyRankings');
-    return cached ? JSON.parse(cached) : [];
-  }
-
-  async getHistoricalRankings(days: number = 7) {
-    return this.redisClient.zrevrange(
-      'historicalRankings',
-      0,
-      days,
-      'WITHSCORES',
-    );
-  }
-
-  broadcastUpdate(rankings: any[]) {
+  broadcastUpdate(rankings: RankingEntry[]) {
     this.server.emit('rankingsUpdate', rankings);
+  }
+
+  @SubscribeMessage('joinRankingRoom')
+  async handleJoinRoom(client: Socket) {
+    const rankings = await this.getCachedRankings();
+    client.emit('rankingsUpdate', rankings);
   }
 
   @SubscribeMessage('requestUserPosition')
   async handleUserPositionRequest(client: Socket, userId: string) {
     const rankings = await this.getCachedRankings();
     const position = rankings.findIndex((r) => r.userId === userId) + 1;
-    client.emit('userPosition', position);
+    client.emit('userPosition', position > 0 ? position : rankings.length + 1);
   }
 
   @SubscribeMessage('requestFullLeaderboard')
@@ -126,20 +102,11 @@ export class RankingService implements OnGatewayConnection {
     client.emit('fullLeaderboard', rankings);
   }
 
-  // Para propósitos de desarrollo/testing
-  async simulateScoreUpdate(userId: string, scoreDelta: number) {
-    const currentRankings = await this.getCachedRankings();
-    const userIndex = currentRankings.findIndex((r) => r.userId === userId);
-
-    if (userIndex > -1) {
-      currentRankings[userIndex].score += scoreDelta;
-      currentRankings.sort((a, b) => b.score - a.score);
-      await this.cacheRankings(currentRankings);
-      this.broadcastUpdate(currentRankings);
-    }
-  }
-
   async getLiveRankings() {
     return this.getCachedRankings();
+  }
+
+  async getHistoricalRankings(days: number = 7): Promise<any[]> {
+    return [];
   }
 }

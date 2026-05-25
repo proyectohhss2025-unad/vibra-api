@@ -1,9 +1,14 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
 import { JwtService } from '@nestjs/jwt';
+import { Model, Types } from 'mongoose';
 import * as bcrypt from 'bcrypt';
 import { AppGateway } from 'src/infrastructure/sockets/appGateway.gateway';
 import { User } from '../users/schemas/user.schema';
 import { UsersService } from '../users/users.service';
+import { PermissionTemplate } from '../permissionTemplates/schemas/permissionTemplate.schema';
+import { Permission } from '../permissions/schemas/permission.schema';
+import { UserPermission } from '../userPermissions/schemas/userPermission.schema';
 import { LoginDto } from './dto/login.dto';
 
 // Interfaz para almacenar tokens invalidados
@@ -15,6 +20,8 @@ interface InvalidatedToken {
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   // Mapa para almacenar tokens invalidados por userId
   private invalidatedTokens: Map<string, InvalidatedToken> = new Map();
 
@@ -25,6 +32,12 @@ export class AuthService {
     private jwtService: JwtService,
     private usersService: UsersService,
     private appGateway: AppGateway,
+    @InjectModel(PermissionTemplate.name)
+    private permissionTemplateModel: Model<PermissionTemplate>,
+    @InjectModel(Permission.name)
+    private permissionModel: Model<Permission>,
+    @InjectModel(UserPermission.name)
+    private userPermissionModel: Model<UserPermission>,
   ) {
     // Configurar limpieza periódica de tokens invalidados
     setInterval(
@@ -151,6 +164,114 @@ export class AuthService {
         username: user.username,
         role: user.role,
       },
+    };
+  }
+
+  /**
+   * Resuelve los permisos completos de un usuario.
+   *
+   * Flujo:
+   * 1. Obtiene el rol del usuario (si tiene)
+   * 2. Del rol, obtiene la plantilla de permisos y sus permisos asociados
+   * 3. También consulta asignaciones directas (UserPermission)
+   * 4. Une y deduplica ambas listas
+   *
+   * @param userId - ID del usuario
+   * @returns Permisos resueltos con metadatos
+   */
+  async resolvePermissions(userId: string) {
+    const permissionMap = new Map<string, any>();
+    let isSuperAdmin = false;
+    let roleInfo: { _id: string; name: string } | null = null;
+
+    try {
+      const userIdObj = new Types.ObjectId(userId);
+
+      // 1. Obtener usuario con rol populado
+      const user = await this.usersService.findByOne({ _id: userIdObj });
+
+      if (user?.role) {
+        const role = user.role as any;
+        const roleId = role._id || role;
+        roleInfo = { _id: String(roleId), name: role.name || '' };
+
+        // Verificar isSuperAdmin directamente del rol populado
+        isSuperAdmin = role.isSuperAdmin === true;
+
+        // Si el rol tiene plantilla populada, extraer permisos
+        if (role.permissionTemplate) {
+          const template = role.permissionTemplate as any;
+          if (template.permissions && Array.isArray(template.permissions)) {
+            for (const perm of template.permissions) {
+              if (perm && perm.serial) {
+                permissionMap.set(perm.serial, {
+                  _id: perm._id,
+                  name: perm.name,
+                  serial: perm.serial,
+                  description: perm.description,
+                });
+              }
+            }
+          }
+        }
+      }
+
+      // 2. Resolver permisos directos (UserPermission)
+      const directPermissions = await this.userPermissionModel
+        .find({
+          user: new Types.ObjectId(userId),
+          deleted: { $ne: true },
+          isActive: { $ne: false },
+        })
+        .populate('permission')
+        .exec();
+
+      for (const up of directPermissions) {
+        const perm = up.permission as any;
+        if (perm && perm.serial) {
+          permissionMap.set(perm.serial, {
+            _id: perm._id,
+            name: perm.name,
+            serial: perm.serial,
+            description: perm.description,
+          });
+        }
+      }
+
+      // 3. Si es SuperAdmin, devolver TODOS los permisos del sistema
+      if (isSuperAdmin) {
+        const allPermissions = await this.permissionModel
+          .find({ deleted: { $ne: true }, isActive: { $ne: false } })
+          .exec();
+
+        for (const perm of allPermissions) {
+          permissionMap.set(perm.serial, {
+            _id: perm._id,
+            name: perm.name,
+            serial: perm.serial,
+            description: perm.description,
+          });
+        }
+      }
+    } catch (error) {
+      this.logger.error(`Error resolviendo permisos para usuario ${userId}:`, error);
+      // Devolver estructura vacía pero válida
+      return {
+        isSuperAdmin: false,
+        role: null,
+        permissions: [],
+        serials: [],
+      };
+    }
+
+    const permissionsArray = Array.from(permissionMap.values());
+    const serials = permissionsArray.map((p) => p.serial);
+
+    return {
+      isSuperAdmin,
+      role: roleInfo,
+      permissions: permissionsArray,
+      serials,
     };
   }
 

@@ -2,6 +2,7 @@ import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { AuthMiddleware } from 'src/infrastructure/auth/auth.middleware';
 import { LoggerModule } from '../logger';
+import { Role, RoleSchema } from '../roles/schemas/role.schema';
 import { User, UserSchema } from '../users/schemas/user.schema';
 import { UsersService } from '../users/users.service';
 import { CompanyController } from './company.controller';
@@ -13,6 +14,7 @@ import { Company, CompanySchema } from './schemas/company.schema';
     MongooseModule.forFeature([
       { name: Company.name, schema: CompanySchema },
       { name: User.name, schema: UserSchema },
+      { name: Role.name, schema: RoleSchema },
     ]),
     LoggerModule,
   ],

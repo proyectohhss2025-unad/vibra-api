@@ -6,6 +6,7 @@ import {
   Param,
   Post,
   Put,
+  Query,
 } from '@nestjs/common';
 import {
   ApiBody,
@@ -25,8 +26,9 @@ export class PermissionsController {
   @Get()
   @ApiOperation({ summary: 'Listar permisos' })
   @ApiResponse({ status: 200, description: 'Lista de permisos.', type: [Permission] })
-  findAll() {
-    return this.permissionsService.findAll();
+  async findAll(@Query('page') page?: string, @Query('rows') rows?: string) {
+    const data = await this.permissionsService.findAll();
+    return { items: data, total: data.length };
   }
 
   @Get(':id')

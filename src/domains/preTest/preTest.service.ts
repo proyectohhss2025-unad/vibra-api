@@ -4,11 +4,13 @@ import { UpdatePreTestDto } from './dto/update-pretest.dto';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { PreTest, TestDocument } from './schemas/preTest.schema';
+import { Test } from '../tests/schemas/test.schema';
 
 @Injectable()
 export class PreTestService {
   constructor(
     @InjectModel(PreTest.name) private preTestModel: Model<TestDocument>,
+    @InjectModel(Test.name) private testModel: Model<Test>,
   ) { }
 
   async create(createTestDto: CreatePreTestDto): Promise<PreTest> {
@@ -41,6 +43,80 @@ export class PreTestService {
 
   async getCountAll(query: any) {
     return this.preTestModel.countDocuments(query).exec();
+  }
+
+  async findByTestId(
+    testId: string,
+    page: number = 1,
+    limit: number = 10,
+  ): Promise<{ data: any[]; total: number }> {
+    const skip = (page - 1) * limit;
+
+    const [data, total] = await Promise.all([
+      this.preTestModel
+        .aggregate([
+          { $match: { testId } },
+          { $sort: { _id: -1 } },
+          { $skip: skip },
+          { $limit: limit },
+          // Buscar usuario por documentNumber O por _id (soporta ambos formatos de userId)
+          {
+            $lookup: {
+              from: 'users',
+              let: { userIdStr: '$userId' },
+              pipeline: [
+                {
+                  $match: {
+                    $expr: {
+                      $or: [
+                        { $eq: ['$documentNumber', '$$userIdStr'] },
+                        { $eq: [{ $toString: '$_id' }, '$$userIdStr'] },
+                      ],
+                    },
+                  },
+                },
+              ],
+              as: 'user',
+            },
+          },
+          // Buscar el rol del usuario desde el primer user encontrado
+          {
+            $lookup: {
+              from: 'roles',
+              let: {
+                roleId: { $ifNull: [{ $arrayElemAt: ['$user.role', 0] }, null] },
+              },
+              pipeline: [
+                { $match: { $expr: { $eq: ['$_id', '$$roleId'] } } },
+                { $project: { _id: 0, name: 1 } },
+              ],
+              as: 'role',
+            },
+          },
+          {
+            $addFields: {
+              userName: {
+                $ifNull: [{ $arrayElemAt: ['$user.name', 0] }, '$userId'],
+              },
+              userRole: {
+                $ifNull: [{ $arrayElemAt: ['$role.name', 0] }, null],
+              },
+              createdAt: { $ifNull: ['$createdAt', null] },
+            },
+          },
+          {
+            $project: {
+              user: 0,
+              role: 0,
+              __v: 0,
+            },
+          },
+        ])
+        .exec(),
+      this.preTestModel.countDocuments({ testId }).exec(),
+    ]);
+
+    return { data, total };
   }
 
   /*
@@ -162,5 +238,71 @@ export class PreTestService {
       throw new NotFoundException('Test result not found');
     }
     return testResult;
+  }
+
+  /**
+   * Obtiene el estado de todos los tests activos para un usuario.
+   * Indica cuáles ha completado, cuáles faltan y si puede continuar.
+   *
+   * @param userId - ID del usuario (documentNumber)
+   * @returns Estado de completitud de tests
+   */
+  async getStatusByUserId(userId: string): Promise<{
+    totalTests: number;
+    completedTests: number;
+    pendingTests: number;
+    allCompleted: boolean;
+    tests: Array<{
+      testId: string;
+      title: string;
+      description: string;
+      completed: boolean;
+      completedAt?: Date;
+      score?: number;
+    }>;
+  }> {
+    // Obtener todos los tests activos del catálogo
+    const allTests = await this.testModel
+      .find({ isActive: true })
+      .select('testId title description')
+      .sort({ createdAt: 1 })
+      .exec();
+
+    // Obtener los pretests que el usuario ya completó
+    const userPretests = await this.preTestModel
+      .find({ userId })
+      .select('testId createdAt totalScore')
+      .exec();
+
+    // Mapa de tests completados por testId para acceso rápido
+    const completedMap = new Map<string, typeof userPretests[0]>();
+    for (const pt of userPretests) {
+      if (!completedMap.has(pt.testId)) {
+        completedMap.set(pt.testId, pt);
+      }
+    }
+
+    // Armar la lista con estado
+    const tests = allTests.map((test) => {
+      const completed = completedMap.get(test.testId);
+      return {
+        testId: test.testId,
+        title: test.title,
+        description: test.description,
+        completed: !!completed,
+        completedAt: completed?._id?.getTimestamp(),
+        score: completed?.totalScore,
+      };
+    });
+
+    const completedTests = tests.filter((t) => t.completed).length;
+
+    return {
+      totalTests: tests.length,
+      completedTests,
+      pendingTests: tests.length - completedTests,
+      allCompleted: completedTests === tests.length,
+      tests,
+    };
   }
 }

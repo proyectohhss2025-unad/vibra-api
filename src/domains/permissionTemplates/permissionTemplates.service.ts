@@ -31,14 +31,14 @@ export class PermissionTemplatesService {
       !paginationParams ||
       (!paginationParams.page && !paginationParams.limit)
     ) {
-      return this.permissionTemplateModel.find().exec();
+      return this.permissionTemplateModel.find().populate('permissions').exec();
     }
 
     const { page = 1, limit = 10 } = paginationParams;
     const skip = (page - 1) * limit;
 
     const [data, total] = await Promise.all([
-      this.permissionTemplateModel.find().skip(skip).limit(limit).exec(),
+      this.permissionTemplateModel.find().skip(skip).limit(limit).populate('permissions').exec(),
       this.permissionTemplateModel.countDocuments().exec(),
     ]);
 
@@ -46,7 +46,7 @@ export class PermissionTemplatesService {
   }
 
   async findOne(id: string): Promise<PermissionTemplate> {
-    return this.permissionTemplateModel.findById(id).exec();
+    return this.permissionTemplateModel.findById(id).populate('permissions').exec();
   }
 
   async create(

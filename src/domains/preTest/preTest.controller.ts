@@ -19,6 +19,8 @@ import {
   ApiTags,
   ApiProperty,
 } from '@nestjs/swagger';
+import { BypassPermission } from 'src/infrastructure/auth/bypass-permission.decorator';
+import { RequirePermission } from 'src/infrastructure/auth/require-permission.decorator';
 import { PreTestService } from './preTest.service';
 import { CreatePreTestDto } from './dto/create-pretest.dto';
 import { UpdatePreTestDto } from './dto/update-pretest.dto';
@@ -62,6 +64,7 @@ class PreTestsPaginatedDto {
 
 @ApiTags('PreTest')
 @Controller('api/pretests')
+@RequirePermission('15')
 export class PreTestController {
   constructor(private readonly preTestService: PreTestService) { }
 
@@ -97,6 +100,34 @@ export class PreTestController {
     return this.preTestService.findAll(page, limit);
   }
 
+  @Get('by-test/:testId')
+  @ApiOperation({
+    summary: 'Obtener respuestas de un test',
+    description: 'Retorna las respuestas de usuarios para un test específico con paginación.',
+  })
+  @ApiParam({ name: 'testId', description: 'ID del test' })
+  @ApiQuery({ name: 'page', required: false, example: 1 })
+  @ApiQuery({ name: 'limit', required: false, example: 10 })
+  @ApiOkResponse({
+    schema: {
+      type: 'object',
+      properties: {
+        data: { type: 'array' },
+        total: { type: 'number', example: 27 },
+      },
+    },
+  })
+  async findByTestId(
+    @Param('testId') testId: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const pageNum = Number(page) || 1;
+    const limitNum = Number(limit) || 10;
+    return this.preTestService.findByTestId(testId, pageNum, limitNum);
+  }
+
+  @BypassPermission()
   @Get('count-all-pretests')
   @ApiOperation({
     summary: 'Obtener el número total de pretests',
@@ -232,5 +263,30 @@ export class PreTestController {
   @ApiOkResponse({ type: PreTestDto })
   async getResultById(@Param('id') id: string) {
     return this.preTestService.getPreTestResultById(id);
+  }
+
+  /**
+   * Get test completion status for a user
+   *
+   * Retorna el estado de todos los tests activos para un usuario:
+   * cuáles ha completado, cuáles faltan y si ya puede continuar.
+   *
+   * @param userId - ID del usuario (documentNumber)
+   * @returns Estado de completitud de tests
+   */
+  @ApiOperation({
+    summary: 'Get test completion status for a user',
+    description:
+      'Retorna el estado de todos los tests activos para un usuario: cuáles ha completado, cuáles faltan y si ya puede continuar.',
+  })
+  @ApiResponse({ status: 200, description: 'Status retrieved successfully.' })
+  @Get('status/:userId')
+  @ApiParam({
+    name: 'userId',
+    description: 'ID del usuario (documentNumber)',
+    example: '6803296',
+  })
+  async getStatusByUserId(@Param('userId') userId: string) {
+    return this.preTestService.getStatusByUserId(userId);
   }
 }

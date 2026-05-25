@@ -4,10 +4,14 @@ import { AuthMiddleware } from 'src/infrastructure/auth/auth.middleware';
 import { PreTestController } from './preTest.controller';
 import { PreTestService } from './preTest.service';
 import { PreTest, PreTestSchema } from './schemas/preTest.schema';
+import { Test, TestSchema } from '../tests/schemas/test.schema';
 
 @Module({
   imports: [
-    MongooseModule.forFeature([{ name: PreTest.name, schema: PreTestSchema }]),
+    MongooseModule.forFeature([
+      { name: PreTest.name, schema: PreTestSchema },
+      { name: Test.name, schema: TestSchema },
+    ]),
   ],
   controllers: [PreTestController],
   providers: [PreTestService],

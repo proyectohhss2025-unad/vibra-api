@@ -7,6 +7,10 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
+import { Company } from '../company/schemas/company.schema';
+import { User } from '../users/schemas/user.schema';
+import { Participant } from '../participant/schemas/participant.schema';
+import { UserResponse } from '../userResponses/schemas/userResponse.schema';
 import { Course, CourseDocument } from './schemas/course.schema';
 import { CreateCourseDto } from './dto/create-course.dto';
 import { UpdateCourseDto } from './dto/update-course.dto';
@@ -17,7 +21,82 @@ export class CourseService {
 
   constructor(
     @InjectModel(Course.name) private courseModel: Model<CourseDocument>,
+    @InjectModel(Company.name) private companyModel: Model<Company>,
+    @InjectModel(User.name) private userModel: Model<User>,
+    @InjectModel(Participant.name) private participantModel: Model<Participant>,
+    @InjectModel(UserResponse.name) private userResponseModel: Model<UserResponse>,
   ) {}
+
+  /**
+   * Obtiene lista simple de cursos activos (solo _id y name) para selectores.
+   */
+  async getSimpleList(): Promise<{ _id: string; name: string }[]> {
+    this.logger.log('Fetching simple course list...');
+    const courses = await this.courseModel
+      .find({ deleted: { $ne: true }, status: true })
+      .select('_id name')
+      .sort({ name: 1 })
+      .lean()
+      .exec();
+    return courses.map((c) => ({ _id: c._id.toString(), name: (c as any).name }));
+  }
+
+  /**
+   * Obtiene el progreso de todos los cursos activos.
+   * Calcula el % de participantes que han completado al menos una actividad.
+   */
+  async getProgress(): Promise<{ courseId: string; courseName: string; totalParticipants: number; activeParticipants: number; progressPercent: number }[]> {
+    this.logger.log('Fetching course progress...');
+
+    const courses = await this.courseModel
+      .find({ deleted: { $ne: true }, status: true })
+      .select('_id name')
+      .lean()
+      .exec();
+
+    const progress = await Promise.all(
+      courses.map(async (course) => {
+        // Participantes inscritos en este curso
+        const totalParticipants = await this.participantModel
+          .countDocuments({ currentCourse: course._id, isActive: true })
+          .exec();
+
+        // Participantes que han completado al menos una actividad
+        const participantUsers = await this.participantModel
+          .find({ currentCourse: course._id, isActive: true })
+          .select('userId')
+          .lean()
+          .exec();
+
+        const userIds = participantUsers.map((p) => p.userId);
+
+        let activeParticipants = 0;
+        if (userIds.length > 0) {
+          activeParticipants = await this.userResponseModel
+            .distinct('user', { user: { $in: userIds } })
+            .exec()
+            .then((users) => users.length);
+        }
+
+        const progressPercent = totalParticipants > 0
+          ? Math.round((activeParticipants / totalParticipants) * 100)
+          : 0;
+
+        return {
+          courseId: course._id.toString(),
+          courseName: (course as any).name,
+          totalParticipants,
+          activeParticipants,
+          progressPercent,
+        };
+      }),
+    );
+
+    // Ordenar por % de progreso descendente
+    progress.sort((a, b) => b.progressPercent - a.progressPercent);
+
+    return progress;
+  }
 
   /**
    * Crear un nuevo curso
@@ -56,9 +135,50 @@ export class CourseService {
   }
 
   /**
+   * Resuelve los nombres de institución e instructor a partir de los IDs
+   */
+  private async resolveNames(courses: CourseDocument[]): Promise<any[]> {
+    if (courses.length === 0) return [];
+
+    // Colectar IDs únicos
+    const companyIds = [...new Set(courses.map(c => c.companyId).filter(Boolean))];
+    const instructorIds = [...new Set(courses.map(c => c.instructorId).filter(Boolean))];
+
+    // Buscar empresas e instructors en batch con campos extendidos
+    const [companies, instructors] = await Promise.all([
+      companyIds.length > 0
+        ? this.companyModel.find({ _id: { $in: companyIds } }).select('_id name nit email').exec()
+        : Promise.resolve([]),
+      instructorIds.length > 0
+        ? this.userModel.find({ _id: { $in: instructorIds } }).select('_id name email documentNumber').exec()
+        : Promise.resolve([]),
+    ]);
+
+    // Crear mapas de lookup con datos completos
+    const companyMap = new Map(companies.map(c => [c._id.toString(), c]));
+    const instructorMap = new Map(instructors.map(u => [u._id.toString(), u]));
+
+    // Mapear los nombres al resultado
+    return courses.map(course => {
+      const courseObj = course.toObject();
+      const company = course.companyId ? companyMap.get(course.companyId) : null;
+      const instructor = course.instructorId ? instructorMap.get(course.instructorId) : null;
+      return {
+        ...courseObj,
+        companyName: company?.name || null,
+        companyNit: company?.nit || null,
+        companyEmail: company?.email || null,
+        instructorName: instructor?.name || null,
+        instructorEmail: instructor?.email || null,
+        instructorDocument: instructor?.documentNumber || null,
+      };
+    });
+  }
+
+  /**
    * Obtener todos los cursos con filtros opcionales y paginación
    * @param filters - Filtros y paginación
-   * @returns Lista de cursos
+   * @returns Lista de cursos con nombres resueltos
    */
   async findAll(filters: {
     companyId?: string;
@@ -87,9 +207,12 @@ export class CourseService {
 
       const total = await this.courseModel.countDocuments(query);
 
+      // Resolver nombres de institución e instructor
+      const coursesWithNames = await this.resolveNames(courses);
+
       return {
         message: 'Cursos obtenidos exitosamente',
-        courses,
+        courses: coursesWithNames,
         length: total,
         page,
         rows,
@@ -101,9 +224,17 @@ export class CourseService {
   }
 
   /**
+   * Resuelve nombres para un curso individual
+   */
+  private async resolveSingleName(course: CourseDocument): Promise<any> {
+    const [resolved] = await this.resolveNames([course]);
+    return resolved;
+  }
+
+  /**
    * Obtener un curso por ID
    * @param id - ID del curso
-   * @returns El curso
+   * @returns El curso con nombres resueltos
    */
   async findOne(id: string) {
     try {
@@ -117,7 +248,9 @@ export class CourseService {
         throw new NotFoundException('Curso no encontrado');
       }
 
-      return { message: 'Curso encontrado exitosamente', course };
+      const courseWithNames = await this.resolveSingleName(course);
+
+      return { message: 'Curso encontrado exitosamente', course: courseWithNames };
     } catch (error) {
       if (error instanceof NotFoundException) {
         throw error;

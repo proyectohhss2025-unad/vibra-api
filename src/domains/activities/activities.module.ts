@@ -6,6 +6,7 @@ import {
 } from 'src/domains/userResponses/schemas/userResponse.schema';
 import { UserResponseService } from 'src/domains/userResponses/userResponse.service';
 import { AuthMiddleware } from 'src/infrastructure/auth/auth.middleware';
+import { PushNotificationsModule } from 'src/domains/push-notifications/push-notifications.module';
 import { ActivitiesController } from './activities.controller';
 import { ActivitiesService } from './activities.service';
 import { Activity, ActivitySchema } from './schemas/activity.schema';
@@ -21,6 +22,7 @@ import {
       { name: WeeklySchedule.name, schema: WeeklyScheduleSchema },
       { name: UserResponse.name, schema: UserResponseSchema },
     ]),
+    PushNotificationsModule,
   ],
   controllers: [ActivitiesController],
   providers: [ActivitiesService, UserResponseService],

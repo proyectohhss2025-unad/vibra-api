@@ -297,7 +297,8 @@ export class CompanyService {
       // Create a regular expression for case-insensitive search
       const regex = new RegExp(searchString, 'i');
 
-      // Construct a query object to search across all fields
+      // Construct a query object to search across text fields
+      // NOTA: phoneNumber se excluye porque es numérico y $regex no aplica
       const query = {
         $or: [
           { name: { $regex: regex } },
@@ -305,7 +306,6 @@ export class CompanyService {
           { nit: { $regex: regex } },
           { address: { $regex: regex } },
           { email: { $regex: regex } },
-          { phoneNumber: { $regex: regex } },
         ],
       };
 

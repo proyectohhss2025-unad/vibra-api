@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { UserResponse } from 'src/domains/userResponses/schemas/userResponse.schema';
+import { PushNotificationService } from 'src/domains/push-notifications/push-notifications.service';
 import { AppLoggerService } from 'src/helpers/logger/logger.service';
 import { PaginationQueryDto } from '../../common/dto/pagination-query.dto';
 import { ActivityResponseDto } from './dto/activity-response.dto';
@@ -18,11 +19,46 @@ export class ActivitiesService {
     @InjectModel(UserResponse.name)
     private userResponseModel: Model<UserResponse>,
     private readonly logger: AppLoggerService,
+    private readonly pushNotificationService: PushNotificationService,
   ) { }
 
   async create(createActivityDto: CreateActivityDto): Promise<Activity> {
-    const createdActivity = new this.activityModel(createActivityDto);
-    return createdActivity.save();
+    const dto: any = createActivityDto;
+
+    // Auto-generar id secuencial si no se provee (formato ACT-XXX)
+    if (!dto.id) {
+      const count = await this.activityModel.countDocuments().exec();
+      dto.id = `ACT-${String(count + 1).padStart(3, '0')}`;
+    }
+
+    const createdActivity = new this.activityModel(dto);
+    const savedActivity = await createdActivity.save();
+
+    // Si la actividad tiene fecha y es para hoy, enviar notificación push
+    if (savedActivity?.schedule?.date) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const activityDate = new Date(savedActivity.schedule.date);
+      activityDate.setHours(0, 0, 0, 0);
+
+      if (activityDate.getTime() === today.getTime()) {
+        this.logger.log('Activity created for today — sending push notifications');
+        this.pushNotificationService
+          .sendPushToAll(
+            '🎉 ¡Nueva actividad disponible!',
+            'Ya tienes una actividad para hoy. ¡Descúbrela ahora!',
+            {
+              url: '/features/(tabs)/one',
+              type: 'new_activity',
+            },
+          )
+          .catch((err) =>
+            this.logger.error(`Error sending push notification: ${err.message}`),
+          );
+      }
+    }
+
+    return savedActivity;
   }
 
   async paginate(
@@ -71,8 +107,72 @@ export class ActivitiesService {
     };
   }
 
+  async getActivitiesByMonth(
+    year: number,
+    courseId?: string,
+  ): Promise<{ month: number; count: number }[]> {
+    const matchStage: any = {
+      startTime: {
+        $gte: new Date(`${year}-01-01T00:00:00.000Z`),
+        $lte: new Date(`${year}-12-31T23:59:59.999Z`),
+      },
+    };
+
+    const pipeline: any[] = [
+      { $match: matchStage },
+    ];
+
+    // Si hay courseId, filtrar participantes que pertenecen a ese curso
+    if (courseId) {
+      pipeline.push(
+        {
+          $lookup: {
+            from: 'participants',
+            localField: 'user',
+            foreignField: 'userId',
+            as: 'participant',
+          },
+        },
+        { $unwind: { path: '$participant', preserveNullAndEmptyArrays: false } },
+        { $match: { 'participant.currentCourse': courseId } },
+      );
+    }
+
+    pipeline.push(
+      {
+        $group: {
+          _id: { $month: '$startTime' },
+          count: { $sum: 1 },
+        },
+      },
+      { $sort: { _id: 1 } },
+      {
+        $project: {
+          _id: 0,
+          month: '$_id',
+          count: 1,
+        },
+      },
+    );
+
+    const result = await this.userResponseModel.aggregate(pipeline);
+
+    // Rellenar meses sin datos con 0
+    const monthsMap = new Map(result.map((r) => [r.month, r.count]));
+    const fullYear = Array.from({ length: 12 }, (_, i) => ({
+      month: i + 1,
+      count: monthsMap.get(i + 1) ?? 0,
+    }));
+
+    return fullYear;
+  }
+
   async getCountAll(query: any) {
     return this.activityModel.countDocuments(query).exec();
+  }
+
+  async countByType(type: string): Promise<number> {
+    return this.activityModel.countDocuments({ type, isActive: true, deleted: { $ne: true } }).exec();
   }
   async findById(id: string): Promise<Activity> {
     return this.activityModel.findById(id).exec();
@@ -82,8 +182,30 @@ export class ActivitiesService {
     id: string,
     updateActivityDto: UpdateActivityDto,
   ): Promise<Activity> {
+    // Construir $set manual para evitar problemas con class-transformer
+    // que crea instancias de clase que Mongoose no serializa bien en subdocumentos.
+    const dto: any = updateActivityDto;
+    const $set: Record<string, any> = {};
+
+    if (dto.title !== undefined) $set.title = dto.title;
+    if (dto.description !== undefined) $set.description = dto.description;
+    if (dto.emotion !== undefined) $set.emotion = dto.emotion;
+    if (dto.difficulty !== undefined) $set.difficulty = dto.difficulty;
+    if (dto.isActive !== undefined) $set.isActive = dto.isActive;
+    if (dto.type !== undefined) $set.type = dto.type;
+    if (dto.schedule !== undefined) $set.schedule = dto.schedule;
+    if (dto.tips !== undefined) $set.tips = dto.tips;
+    if (dto.games !== undefined) $set.games = dto.games;
+
+    if (dto.resources !== undefined) {
+      $set.resources = dto.resources.map((r: any) => ({ ...r }));
+    }
+    if (dto.questions !== undefined) {
+      $set.questions = dto.questions.map((q: any) => ({ ...q }));
+    }
+
     return this.activityModel
-      .findByIdAndUpdate(id, { $set: updateActivityDto }, { new: true })
+      .findByIdAndUpdate(id, { $set }, { new: true })
       .exec();
   }
 

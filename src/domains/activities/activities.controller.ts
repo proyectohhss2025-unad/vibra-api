@@ -21,6 +21,8 @@ import {
   ApiProperty,
   ApiPropertyOptional,
 } from '@nestjs/swagger';
+import { BypassPermission } from 'src/infrastructure/auth/bypass-permission.decorator';
+import { RequirePermission } from 'src/infrastructure/auth/require-permission.decorator';
 import { ActivitiesService } from './activities.service';
 import { ActivityResponseDto } from './dto/activity-response.dto';
 import { CreateActivityDto, UpdateActivityDto } from './dto/activity.dto';
@@ -115,6 +117,7 @@ class ActivitiesPaginatedDto {
 @ApiTags('Activities')
 @ApiBearerAuth()
 @Controller('api/activities')
+@RequirePermission('16')
 export class ActivitiesController {
   constructor(private readonly activitiesService: ActivitiesService) { }
 
@@ -166,6 +169,38 @@ export class ActivitiesController {
     );
   }
 
+  @Get('by-month')
+  @ApiOperation({
+    summary: 'Obtener actividades completadas agrupadas por mes',
+    description:
+      'Retorna el conteo de user responses agrupadas por mes para un año específico. Útil para gráficas de participación.',
+  })
+  @ApiQuery({ name: 'year', required: false, example: 2026, description: 'Año a consultar (default: año actual)' })
+  @ApiQuery({ name: 'courseId', required: false, description: 'Filtrar por curso' })
+  @ApiOkResponse({
+    description: 'Actividades por mes.',
+    schema: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          month: { type: 'number', example: 1 },
+          count: { type: 'number', example: 45 },
+        },
+      },
+    },
+  })
+  getActivitiesByMonth(
+    @Query('year') year?: number,
+    @Query('courseId') courseId?: string,
+  ) {
+    return this.activitiesService.getActivitiesByMonth(
+      year ?? new Date().getFullYear(),
+      courseId,
+    );
+  }
+
+  @BypassPermission()
   @Get('count-all-activities')
   @ApiOperation({
     summary: 'Obtener el número total de actividades',
@@ -183,6 +218,26 @@ export class ActivitiesController {
   })
   findCountAll(@Query() query: any) {
     return this.activitiesService.getCountAll(query);
+  }
+
+  @BypassPermission()
+  @Get('count-by-type')
+  @ApiOperation({
+    summary: 'Contar actividades por tipo',
+    description: 'Retorna el número de actividades activas filtradas por tipo (reto, evento_personal, etc).',
+  })
+  @ApiQuery({ name: 'type', required: true, example: 'reto' })
+  @ApiOkResponse({
+    schema: {
+      type: 'object',
+      properties: {
+        count: { type: 'number', example: 3 },
+      },
+    },
+  })
+  async countByType(@Query('type') type: string) {
+    const count = await this.activitiesService.countByType(type);
+    return { count };
   }
 
   @Get('all')
@@ -311,6 +366,7 @@ export class ActivitiesController {
     });
   }
 
+  @BypassPermission()
   @Get('daily/current')
   @ApiOperation({
     summary: 'Obtener actividad del día',

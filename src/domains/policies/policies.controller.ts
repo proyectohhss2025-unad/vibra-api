@@ -5,6 +5,7 @@ import {
   Body,
   Param,
   Put,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -20,6 +21,7 @@ import {
   ApiTags,
   ApiProperty,
   ApiPropertyOptional,
+  ApiQuery,
 } from '@nestjs/swagger';
 
 class PolicyDto {
@@ -47,7 +49,6 @@ export class PoliciesController {
   constructor(private readonly policiesService: PoliciesService) {}
 
   @Post()
-  @UseGuards(AuthGuard)
   @ApiOperation({ summary: 'Crear política' })
   @ApiBody({ schema: { type: 'object' } })
   @ApiResponse({ status: 201, description: 'Política creada.' })
@@ -56,7 +57,6 @@ export class PoliciesController {
   }
 
   @Put(':id')
-  @UseGuards(AuthGuard)
   @ApiOperation({ summary: 'Actualizar política' })
   @ApiParam({ name: 'id', description: 'ID de la política.' })
   @ApiBody({ schema: { type: 'object' } })
@@ -69,14 +69,18 @@ export class PoliciesController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Listar políticas activas' })
+  @ApiOperation({ summary: 'Listar políticas (paginado)' })
+  @ApiQuery({ name: 'page', required: false, example: 1 })
+  @ApiQuery({ name: 'limit', required: false, example: 12 })
   @ApiOkResponse({ description: 'Listado de políticas.', type: PoliciesListDto })
-  async getAllPolicies() {
-    return this.policiesService.getAllPolicies();
+  async getAllPolicies(
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+  ) {
+    return this.policiesService.getAllPolicies(page ?? 1, limit ?? 12);
   }
 
   @Get(':id')
-  @UseGuards(AuthGuard)
   @ApiOperation({ summary: 'Obtener política por id' })
   @ApiParam({ name: 'id', description: 'ID de la política.' })
   @ApiOkResponse({ description: 'Política encontrada.', type: PolicyDto })

@@ -21,17 +21,17 @@ export class Activity extends Document {
   @Prop()
   description: string;
 
-  @Prop([
-    {
-      type: {
-        _id: false,
+  @Prop({
+    type: [
+      {
         type: { type: String, enum: ['video', 'audio'] },
         url: String,
         duration: Number,
         metadata: Object,
       },
-    },
-  ])
+    ],
+    _id: false,
+  })
   resources: Types.Array<{
     type: 'video' | 'audio';
     url: string;
@@ -39,10 +39,9 @@ export class Activity extends Document {
     metadata?: Record<string, any>;
   }>;
 
-  @Prop([
-    {
-      type: {
-        _id: false,
+  @Prop({
+    type: [
+      {
         id: String,
         questionText: String,
         type: { type: String, enum: ['multiple', 'open'] },
@@ -50,8 +49,9 @@ export class Activity extends Document {
         correctAnswer: String,
         points: Number,
       },
-    },
-  ])
+    ],
+    _id: false,
+  })
   questions: Types.Array<{
     id: string;
     questionText: string;
@@ -74,6 +74,40 @@ export class Activity extends Document {
     index: true,
   })
   type?: string;
+
+  @Prop({
+    type: [{
+      _id: false,
+      emoji: { type: String, required: true },
+      message: { type: String, required: true },
+      category: {
+        type: String,
+        enum: ['start', 'question', 'wordsearch', 'matching', 'emotionbox', 'dicegame', 'complete', null],
+        default: null,
+      },
+    }],
+    default: [],
+  })
+  tips: { emoji: string; message: string; category?: string }[];
+
+  @Prop({
+    type: [{
+      _id: false,
+      type: {
+        type: String,
+        enum: ['WordSearch', 'MatchingConcepts', 'DiceGame', 'EmotionBox'],
+        required: true,
+      },
+      config: { type: MongooseSchema.Types.Mixed, required: true },
+      order: { type: Number, default: 0 },
+    }],
+    default: [],
+  })
+  games: Array<{
+    type: 'WordSearch' | 'MatchingConcepts' | 'DiceGame' | 'EmotionBox';
+    config: Record<string, any>;
+    order: number;
+  }>;
 
   @Prop({
     type: {

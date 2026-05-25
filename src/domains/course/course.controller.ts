@@ -8,6 +8,7 @@ import {
   Put,
   Query,
 } from '@nestjs/common';
+import { RequirePermission } from 'src/infrastructure/auth/require-permission.decorator';
 import { CourseService } from './course.service';
 import { CreateCourseDto } from './dto/create-course.dto';
 import { UpdateCourseDto } from './dto/update-course.dto';
@@ -22,8 +23,66 @@ import {
 
 @ApiTags('Courses')
 @Controller('api/courses')
+@RequirePermission('10')
 export class CourseController {
   constructor(private readonly courseService: CourseService) {}
+
+  /**
+   * Obtener lista simple de cursos (id, name) para selectores
+   */
+  @Get('list')
+  @ApiOperation({
+    summary: 'Lista simple de cursos',
+    description:
+      'Retorna una lista reducida de cursos activos con solo _id y name, para poblar selectores/combos.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Lista de cursos obtenida exitosamente',
+    schema: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          _id: { type: 'string', example: '65f1a2b3c4d5e6f7g8h9i0j' },
+          name: { type: 'string', example: 'Matemáticas 101' },
+        },
+      },
+    },
+  })
+  async getSimpleList() {
+    return this.courseService.getSimpleList();
+  }
+
+  /**
+   * Obtener progreso de todos los cursos
+   */
+  @Get('progress')
+  @ApiOperation({
+    summary: 'Progreso de cursos',
+    description:
+      'Retorna el % de avance de cada curso basado en participantes que han completado al menos una actividad.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Progreso de cursos obtenido exitosamente',
+    schema: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          courseId: { type: 'string', example: '65f1a2b3c4d5e6f7g8h9i0j' },
+          courseName: { type: 'string', example: 'Matemáticas 101' },
+          totalParticipants: { type: 'number', example: 30 },
+          activeParticipants: { type: 'number', example: 22 },
+          progressPercent: { type: 'number', example: 73 },
+        },
+      },
+    },
+  })
+  async getProgress() {
+    return this.courseService.getProgress();
+  }
 
   /**
    * Crear un nuevo curso

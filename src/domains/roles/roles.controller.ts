@@ -26,6 +26,7 @@ import {
 } from '@nestjs/swagger';
 import { parse } from 'csv-parse/sync';
 import { readFileSync } from 'fs';
+import { RequirePermission } from 'src/infrastructure/auth/require-permission.decorator';
 import { RolesService } from './roles.service';
 import { Role } from './schemas/role.schema';
 import { CreateRoleDto } from './dto/create-role.dto';
@@ -93,6 +94,7 @@ class RolesPaginatedDto {
 
 @ApiTags('Roles')
 @Controller('api/roles')
+@RequirePermission('9')
 export class RolesController {
   constructor(private readonly rolesService: RolesService) {}
 

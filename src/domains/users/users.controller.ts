@@ -8,11 +8,14 @@ import {
   ApiOkResponse,
   ApiOperation,
   ApiParam,
+  ApiQuery,
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
 import { JwtService } from '@nestjs/jwt';
 import { EventsGateway } from '../../infrastructure/sockets/events.gateway';
+import { BypassPermission } from 'src/infrastructure/auth/bypass-permission.decorator';
+import { RequirePermission } from 'src/infrastructure/auth/require-permission.decorator';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { User } from './schemas/user.schema';
@@ -162,6 +165,7 @@ class UsersPaginatedDto {
 
 @ApiTags('Users')
 @Controller('api/users')
+@RequirePermission('9')
 export class UsersController {
   constructor(
     private readonly usersService: UsersService,
@@ -259,6 +263,7 @@ export class UsersController {
     return this.usersService.findAll();
   }
 
+  @BypassPermission()
   @Get('count-all-users')
   @ApiOperation({
     summary: 'Obtener el número total de usuarios',
@@ -320,5 +325,34 @@ export class UsersController {
   @ApiOkResponse({ description: 'Usuario encontrado.', type: UserDto })
   async findOneById(@Param('id') id: string) {
     return this.usersService.findByOne({ _id: id });
+  }
+
+  @Get('search-by-role/docentes')
+  @ApiOperation({
+    summary: 'Buscar usuarios con rol docente',
+    description:
+      'Busca usuarios cuyo rol sea "docente" por nombre, email, documento o username.',
+  })
+  @ApiQuery({
+    name: 'searchTerm',
+    required: false,
+    description: 'Término de búsqueda',
+    example: 'carlos',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    description: 'Máximo de resultados',
+    example: '10',
+  })
+  @ApiOkResponse({
+    description: 'Lista de docentes encontrados.',
+    type: [UserDto],
+  })
+  async searchDocentes(
+    @Query('searchTerm') searchTerm: string = '',
+    @Query('limit') limit: string = '10',
+  ) {
+    return this.usersService.searchByRole('docente', searchTerm, parseInt(limit));
   }
 }

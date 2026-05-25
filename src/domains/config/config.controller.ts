@@ -19,6 +19,7 @@ import {
   ApiQuery,
   ApiTags,
 } from '@nestjs/swagger';
+import { RequirePermission } from 'src/infrastructure/auth/require-permission.decorator';
 import { ConfigService } from './config.service';
 import { CreateConfigDto } from './dto/create-config.dto';
 import { UpdateConfigDto } from './dto/update-config.dto';
@@ -56,6 +57,7 @@ class ConfigsPaginatedDto {
 
 @ApiTags('Config')
 @Controller('api/config')
+@RequirePermission('11')
 export class ConfigController {
   constructor(private readonly configService: ConfigService) {}
 

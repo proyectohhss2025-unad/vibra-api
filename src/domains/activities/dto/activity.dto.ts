@@ -82,6 +82,32 @@ class QuestionDto {
   points: number;
 }
 
+class TipDto {
+  @ApiProperty({
+    description: 'Emoji del tip motivacional.',
+    example: '🌟',
+  })
+  @IsNotEmpty()
+  @IsString()
+  emoji: string;
+
+  @ApiProperty({
+    description: 'Mensaje del tip motivacional.',
+    example: '¡Tú puedes! Respira profundo y continúa.',
+  })
+  @IsNotEmpty()
+  @IsString()
+  message: string;
+
+  @ApiPropertyOptional({
+    description: 'Categoría del tip (opcional). Si se define, solo se muestra en ese tipo de juego.',
+    enum: ['start', 'question', 'wordsearch', 'matching', 'emotionbox', 'dicegame', 'complete'],
+  })
+  @IsOptional()
+  @IsString()
+  category?: string;
+}
+
 export class CreateActivityDto {
   @ApiProperty({
     description:
@@ -141,6 +167,29 @@ export class CreateActivityDto {
   @IsOptional()
   @IsEnum(['reto', 'evento_personal', 'actividad_pares', 'otro'])
   type?: string;
+
+  @ApiPropertyOptional({
+    description: 'Tips motivacionales para la actividad.',
+    type: [TipDto],
+    example: [{ emoji: '🌟', message: '¡Tú puedes!', category: 'question' }],
+  })
+  @IsOptional()
+  @ValidateNested({ each: true })
+  @Type(() => TipDto)
+  tips?: TipDto[];
+
+  @ApiPropertyOptional({
+    description: 'Configuración de juegos incluidos en la actividad.',
+    example: [
+      { type: 'WordSearch', config: { words: ['AMOR', 'PAZ'], gridSize: 9, timeLimit: 300 }, order: 1 },
+    ],
+  })
+  @IsOptional()
+  games?: Array<{
+    type: 'WordSearch' | 'MatchingConcepts' | 'DiceGame' | 'EmotionBox';
+    config: Record<string, any>;
+    order: number;
+  }>;
 }
 
 export class UpdateActivityDto extends CreateActivityDto {

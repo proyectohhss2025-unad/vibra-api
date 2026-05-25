@@ -3,25 +3,86 @@ import { Document, HydratedDocument, Types } from 'mongoose';
 
 export type ParticipantDocument = HydratedDocument<Participant>;
 
+export const PARTICIPANT_LEVELS = ['bronce', 'plata', 'oro', 'platino', 'diamante'] as const;
+export type ParticipantLevel = (typeof PARTICIPANT_LEVELS)[number];
+
+export function calculateLevel(points: number): ParticipantLevel {
+  if (points >= 1000) return 'diamante';
+  if (points >= 600) return 'platino';
+  if (points >= 300) return 'oro';
+  if (points >= 100) return 'plata';
+  return 'bronce';
+}
+
 @Schema({ timestamps: true })
 export class Participant extends Document {
+  // ─── Relación con User ───
+  @Prop({ type: Types.ObjectId, ref: 'User', required: true, unique: true })
+  userId: Types.ObjectId;
+
+  // ─── Datos básicos del participante ───
   @Prop({ type: String, required: true, trim: true })
-  name: string;
-
-  @Prop({ type: String, required: true, trim: true })
-  nit: string;
+  nickname: string;
 
   @Prop({ type: String, trim: true })
-  epsCode: string;
+  avatar?: string;
+
+  // ─── Progreso y gamificación ───
+  @Prop({ type: Number, default: 0 })
+  points: number;
+
+  @Prop({ type: String, enum: PARTICIPANT_LEVELS, default: 'bronce' })
+  level: ParticipantLevel;
+
+  @Prop({ type: Number, default: 0 })
+  currentStreak: number;
+
+  @Prop({ type: Number, default: 0 })
+  maxStreak: number;
+
+  @Prop({ type: Number, default: 0 })
+  totalActivitiesCompleted: number;
+
+  @Prop({ type: Date })
+  lastActivityDate?: Date;
+
+  // ─── Preferencias ───
+  @Prop({ type: Object })
+  preferences?: {
+    language: string;
+    notifications: boolean;
+  };
+
+  // ─── Curso actual ───
+  @Prop({ type: Types.ObjectId, ref: 'Course' })
+  currentCourse?: Types.ObjectId;
+
+  // ─── Flags del sistema ───
+  @Prop({ type: Boolean, default: true })
+  isActive: boolean;
+
+  // ─── Historial de sesión ───
+  @Prop({ type: Date })
+  lastSessionDate?: Date;
+
+  // ─── CAMPOS LEGACY (opcionales, para compatibilidad con Contract) ───
+  @Prop({ type: String, trim: true })
+  name?: string;
 
   @Prop({ type: String, trim: true })
-  address: string;
+  nit?: string;
 
   @Prop({ type: String, trim: true })
-  phoneNumber: string;
+  epsCode?: string;
 
   @Prop({ type: String, trim: true })
-  email: string;
+  address?: string;
+
+  @Prop({ type: String, trim: true })
+  phoneNumber?: string;
+
+  @Prop({ type: String, trim: true })
+  email?: string;
 
   @Prop({ type: Object })
   managerData?: {
@@ -33,16 +94,16 @@ export class Participant extends Document {
   };
 
   @Prop({ type: [String] })
-  overdueInvoiceIds: string[];
+  overdueInvoiceIds?: string[];
 
   @Prop({ type: Number })
-  totalDebt: number;
+  totalDebt?: number;
 
   @Prop({ type: Number })
-  daysInArrears: number;
+  daysInArrears?: number;
 
   @Prop({ type: Number })
-  creditLimit: number;
+  creditLimit?: number;
 
   @Prop({ type: Object })
   walletData?: {
@@ -52,26 +113,17 @@ export class Participant extends Document {
   @Prop({ type: [{ type: Types.ObjectId, ref: 'Transaction' }] })
   transactions?: Types.ObjectId[];
 
-  @Prop({ type: String })
-  avatar: string;
-
   @Prop({ type: Boolean })
   isParticular?: boolean;
 
   @Prop({ type: String })
   externalId?: string;
 
-  @Prop({ type: Date })
-  updatedAt?: Date;
-
   @Prop({ type: String })
   regime?: string;
 
   @Prop({ type: String })
   serial?: string;
-
-  @Prop({ type: Boolean, default: true })
-  isActive?: boolean;
 
   @Prop({ type: Boolean, default: false })
   deleted?: boolean;
@@ -88,9 +140,6 @@ export class Participant extends Document {
   @Prop({ type: String })
   editedBy?: string;
 
-  @Prop({ type: Date, default: Date.now })
-  createdAt: Date;
-
   @Prop({ type: String })
   createdBy: string;
 
@@ -99,4 +148,3 @@ export class Participant extends Document {
 }
 
 export const ParticipantSchema = SchemaFactory.createForClass(Participant);
-

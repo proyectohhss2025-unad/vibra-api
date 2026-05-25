@@ -69,6 +69,40 @@ export class AuthController {
     return req.user;
   }
 
+  @Get('my-permissions')
+  @ApiOperation({ summary: 'Obtener permisos del usuario autenticado' })
+  @ApiOkResponse({
+    description: 'Permisos resueltos del usuario.',
+    schema: {
+      type: 'object',
+      properties: {
+        isSuperAdmin: { type: 'boolean' },
+        role: {
+          type: 'object',
+          properties: { _id: { type: 'string' }, name: { type: 'string' } },
+          nullable: true,
+        },
+        permissions: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              _id: { type: 'string' },
+              name: { type: 'string' },
+              serial: { type: 'string' },
+              description: { type: 'string' },
+            },
+          },
+        },
+        serials: { type: 'array', items: { type: 'string' } },
+      },
+    },
+  })
+  async getMyPermissions(@Request() req: any) {
+    const userId = req.user?._id || req.user?.sub;
+    return this.authService.resolvePermissions(userId);
+  }
+
   @Public()
   @Post('refresh-token')
   @ApiOperation({ summary: 'Refrescar token' })

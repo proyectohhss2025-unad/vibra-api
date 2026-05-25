@@ -48,11 +48,21 @@ export class PoliciesService {
   }
 
   /**
-   * Retrieves all active policies from the system
-   * @returns Promise<Policy[]> - An array of all active policies
+   * Retrieves policies with pagination
+   * @param page - Page number (default: 1)
+   * @param limit - Items per page (default: 12)
+   * @returns Promise with data array and total count
    */
-  async getAllPolicies(): Promise<Policy[]> {
-    return this.policyModel.find({ isActive: true }).exec();
+  async getAllPolicies(
+    page: number = 1,
+    limit: number = 12,
+  ): Promise<{ data: Policy[]; total: number; page: number; limit: number }> {
+    const skip = (page - 1) * limit;
+    const [data, total] = await Promise.all([
+      this.policyModel.find().skip(skip).limit(limit).sort({ createdAt: -1 }).exec(),
+      this.policyModel.countDocuments().exec(),
+    ]);
+    return { data, total, page, limit };
   }
 
   /**

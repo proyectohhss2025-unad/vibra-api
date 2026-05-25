@@ -1,31 +1,192 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { parse } from 'csv-parse';
 import { readFileSync } from 'fs';
-import { Model } from 'mongoose';
+import { Model, PipelineStage, Types } from 'mongoose';
+import { WeeklySchedule } from '../activities/schemas/weekly-schedule.schema';
 import { CreateParticipantDto } from './dto/create-participant.dto';
-import { UpdateParticipantDto } from './dto/update-participant.dto';
-import { Participant } from './schemas/participant.schema';
+import { UpdateParticipantDto, UpdatePointsDto } from './dto/update-participant.dto';
+import { Participant, calculateLevel } from './schemas/participant.schema';
 
 @Injectable()
 export class ParticipantService {
   constructor(
     @InjectModel(Participant.name)
     private participantModel: Model<Participant>,
+    @InjectModel(WeeklySchedule.name)
+    private weeklyScheduleModel: Model<WeeklySchedule>,
   ) { }
 
+  // ─── NUEVO: Crear participante desde registro de User ───
   async create(createParticipantDto: CreateParticipantDto) {
-    const existingParticipant = await this.participantModel.findOne({
-      nit: createParticipantDto.nit,
+    const existing = await this.participantModel.findOne({
+      userId: createParticipantDto.userId,
     });
-    if (existingParticipant) {
-      throw new Error('A participant with that nit already exists');
+    if (existing) {
+      throw new ConflictException('Ya existe un participante para este usuario');
     }
 
-    const participant = new this.participantModel(createParticipantDto);
+    const participant = new this.participantModel({
+      ...createParticipantDto,
+      points: 0,
+      level: 'bronce',
+      currentStreak: 0,
+      maxStreak: 0,
+      totalActivitiesCompleted: 0,
+    });
     return participant.save();
   }
 
+  // ─── NUEVO: Obtener participante por userId ───
+  async findByUserId(userId: string) {
+    const participant = await this.participantModel.findOne({ userId });
+    if (!participant) {
+      throw new NotFoundException('Participante no encontrado para este usuario');
+    }
+    return participant;
+  }
+
+  // ─── Obtener historial de actividad por día ───
+  async getActivityHistory(id: string, days: number = 30) {
+    const participant = await this.participantModel.findById(id);
+    if (!participant) {
+      throw new NotFoundException('Participante no encontrado');
+    }
+
+    const userId = participant.userId;
+    const sinceDate = new Date();
+    sinceDate.setDate(sinceDate.getDate() - days);
+
+    const pipeline: PipelineStage[] = [
+      { $match: { participants: new Types.ObjectId(userId) } },
+      { $unwind: '$days' },
+      { $match: { 'days.status': 'completed', 'days.date': { $gte: sinceDate } } },
+      {
+        $group: {
+          _id: {
+            $dateToString: { format: '%Y-%m-%d', date: '$days.date' },
+          },
+          count: { $sum: 1 },
+        },
+      },
+      { $sort: { _id: 1 } },
+      {
+        $project: {
+          _id: 0,
+          date: '$_id',
+          count: 1,
+        },
+      },
+    ];
+
+    const history = await this.weeklyScheduleModel.aggregate(pipeline);
+
+    // Rellenar días sin actividad con count=0
+    const result: { date: string; count: number }[] = [];
+    for (let i = days; i >= 0; i--) {
+      const date = new Date();
+      date.setDate(date.getDate() - i);
+      const dateStr = date.toISOString().split('T')[0];
+      const found = history.find((h) => h.date === dateStr);
+      result.push({ date: dateStr, count: found ? found.count : 0 });
+    }
+
+    return { history: result };
+  }
+
+  // ─── Obtener leaderboard del curso ───
+  async getLeaderboard(courseId: string, limit: number = 20) {
+    const filter: any = { isActive: true };
+    if (courseId && courseId !== 'undefined' && Types.ObjectId.isValid(courseId)) {
+      filter.currentCourse = new Types.ObjectId(courseId);
+    }
+
+    const participants = await this.participantModel
+      .find(filter)
+      .select('userId nickname points level avatar currentCourse')
+      .sort({ points: -1 })
+      .limit(limit)
+      .lean();
+
+    const totalCount = await this.participantModel.countDocuments(filter);
+
+    const leaderboard = participants.map((p, index) => ({
+      rank: index + 1,
+      userId: p.userId,
+      nickname: p.nickname,
+      level: p.level,
+      points: p.points,
+      avatar: p.avatar,
+    }));
+
+    return { leaderboard, totalCount };
+  }
+
+  // ─── NUEVO: Actualizar puntos con lógica de streak y level ───
+  async updatePoints(id: string, dto: UpdatePointsDto) {
+    const participant = await this.participantModel.findById(id);
+    if (!participant) {
+      throw new NotFoundException('Participante no encontrado');
+    }
+
+    // Actualizar puntos
+    participant.points += dto.pointsIncrement;
+
+    // Recalcular level
+    participant.level = calculateLevel(participant.points);
+
+    // Actualizar streak si completó actividad
+    if (dto.activityCompleted) {
+      participant.totalActivitiesCompleted += 1;
+
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+      if (participant.lastActivityDate) {
+        const lastDate = new Date(
+          participant.lastActivityDate.getFullYear(),
+          participant.lastActivityDate.getMonth(),
+          participant.lastActivityDate.getDate(),
+        );
+
+        const diffDays = Math.floor(
+          (today.getTime() - lastDate.getTime()) / (1000 * 60 * 60 * 24),
+        );
+
+        if (diffDays === 1) {
+          // Día consecutivo
+          participant.currentStreak += 1;
+        } else if (diffDays > 1) {
+          // Se rompió la racha
+          participant.currentStreak = 1;
+        }
+        // diffDays === 0: misma actividad el mismo día, no cambiar streak
+      } else {
+        // Primera actividad
+        participant.currentStreak = 1;
+      }
+
+      // Actualizar récord de racha
+      if (participant.currentStreak > participant.maxStreak) {
+        participant.maxStreak = participant.currentStreak;
+      }
+
+      participant.lastActivityDate = now;
+    }
+
+    await participant.save();
+
+    return {
+      points: participant.points,
+      level: participant.level,
+      currentStreak: participant.currentStreak,
+      maxStreak: participant.maxStreak,
+      totalActivitiesCompleted: participant.totalActivitiesCompleted,
+      lastActivityDate: participant.lastActivityDate,
+    };
+  }
+
+  // ─── LEGACY: Carga masiva desde CSV ───
   async createMany(file: Express.Multer.File) {
     const fileContent = readFileSync(file.path, 'utf8');
     const participantsData = await parse(fileContent, { columns: true });
@@ -59,6 +220,7 @@ export class ParticipantService {
     return this.participantModel.insertMany(participants);
   }
 
+  // ─── LEGACY: Listar con paginación ───
   async findAll(query: any) {
     const { rows, page, dateFilter, limit } = query;
     const filter: any = {};
@@ -86,15 +248,18 @@ export class ParticipantService {
     };
   }
 
+  // ─── LEGACY: Contar todos ───
   async getCountAll(query: any) {
     return this.participantModel.countDocuments(query).exec();
   }
 
+  // ─── LEGACY: Buscar por texto ───
   async search(searchTerm: string) {
     const regex = new RegExp(searchTerm, 'i');
     const query = {
       $or: [
         { name: { $regex: regex } },
+        { nickname: { $regex: regex } },
         { nit: { $regex: regex } },
         { address: { $regex: regex } },
         { phoneNumber: { $regex: regex } },
@@ -107,16 +272,18 @@ export class ParticipantService {
       .sort({ name: -1 });
   }
 
+  // ─── LEGACY: Obtener por _id ───
   async findOne(id: string) {
     return this.participantModel.findById(id);
   }
 
+  // ─── LEGACY: Actualizar ───
   async update(updateParticipantDto: UpdateParticipantDto) {
     const participant = await this.participantModel.findById(
       updateParticipantDto._id,
     );
     if (!participant) {
-      throw new Error('Participant not found');
+      throw new NotFoundException('Participante no encontrado');
     }
 
     Object.assign(participant, updateParticipantDto);
@@ -124,8 +291,8 @@ export class ParticipantService {
     return participant.save();
   }
 
+  // ─── LEGACY: Eliminar ───
   async remove(id: string) {
     return this.participantModel.findByIdAndDelete(id);
   }
 }
-

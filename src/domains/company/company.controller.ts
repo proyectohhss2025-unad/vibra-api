@@ -8,6 +8,8 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
+import { BypassPermission } from 'src/infrastructure/auth/bypass-permission.decorator';
+import { RequirePermission } from 'src/infrastructure/auth/require-permission.decorator';
 import { CompanyService } from './company.service';
 import { CreateCompanyDto } from './dto/create-company.dto';
 import { UpdateCompanyDto } from './dto/update-company.dto';
@@ -15,6 +17,7 @@ import { ApiTags, ApiOperation, ApiBody, ApiResponse, ApiQuery } from '@nestjs/s
 
 @ApiTags('Company')
 @Controller('api/company')
+@RequirePermission('10')
 export class CompanyController {
   constructor(private readonly companyService: CompanyService) { }
 
@@ -48,6 +51,7 @@ export class CompanyController {
     return this.companyService.findAll(Number.parseInt(page), parseInt(rows));
   }
 
+  @BypassPermission()
   @Get('count-all-companies')
   @ApiOperation({ summary: 'Obtener el número total de compañías' })
   @ApiResponse({ status: 200, description: 'Número total de compañías obtenido exitosamente' })

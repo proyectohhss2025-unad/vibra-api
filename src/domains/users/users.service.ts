@@ -10,11 +10,13 @@ import { AppLoggerService } from '../../helpers/logger/logger.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { User } from './schemas/user.schema';
+import { Role } from '../roles/schemas/role.schema';
 
 @Injectable()
 export class UsersService {
   constructor(
     @InjectModel(User.name) private userModel: Model<User>,
+    @InjectModel(Role.name) private roleModel: Model<Role>,
     private readonly logger: AppLoggerService,
   ) {
     this.logger.log('UsersService initialized');
@@ -241,5 +243,50 @@ export class UsersService {
       );
     }
     return user;
+  }
+
+  /**
+   * Busca usuarios por nombre de rol y término de búsqueda
+   * @param roleName - Nombre del rol (ej: 'docente')
+   * @param searchTerm - Término de búsqueda (name, email, documentNumber, username)
+   * @param limit - Máximo de resultados
+   */
+  async searchByRole(roleName: string, searchTerm: string, limit: number): Promise<Partial<User>[]> {
+    // Búsqueda case-insensitive del rol (ej: "docente" encuentra "Docente")
+    const role = await this.roleModel.findOne({
+      name: { $regex: new RegExp(`^${roleName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
+      deleted: { $ne: true },
+    }).exec();
+    if (!role) {
+      this.logger.warn(`No se encontró el rol "${roleName}" en la base de datos`);
+      return [];
+    }
+
+    const regex = new RegExp(searchTerm, 'i');
+    return this.userModel
+      .find({
+        deleted: { $ne: true },
+        $and: [
+          {
+            // Coincidir rol tanto si está como string o como ObjectId
+            $or: [
+              { role: role._id },
+              { role: role._id.toString() },
+            ],
+          },
+          {
+            $or: [
+              { name: { $regex: regex } },
+              { email: { $regex: regex } },
+              { documentNumber: { $regex: regex } },
+              { username: { $regex: regex } },
+            ],
+          },
+        ],
+      })
+      .limit(limit)
+      .select('name email documentNumber username _id')
+      .sort({ name: 1 })
+      .exec();
   }
 }
