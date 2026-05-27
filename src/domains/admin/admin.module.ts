@@ -1,6 +1,8 @@
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
 import { LoggerModule } from 'src/helpers/logger/logger.module';
+import { BackupModule } from 'src/infrastructure/backup/backup.module';
 import { AuthMiddleware } from 'src/infrastructure/auth/auth.middleware';
 import { FileSchema } from '../files/schemas/file.schema';
 import { NotificationSchema } from '../notification/schemas/notification.schema';
@@ -16,6 +18,7 @@ import { AdminService } from './admin.service';
       { name: Report.name, schema: ReportSchema },
     ]),
     LoggerModule,
+    BackupModule,
   ],
   controllers: [AdminController],
   providers: [AdminService],

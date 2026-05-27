@@ -1,17 +1,18 @@
 import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectModel } from '@nestjs/mongoose';
 import mongoose, { Model } from 'mongoose';
 import { AppLoggerService } from 'src/helpers/logger/logger.service';
+import * as fs from 'fs';
+import * as path from 'path';
 import {
-  FORMAT_DATE_SHORT,
   NOTIFICATION_CHANNEL_INBOX,
   NOTIFICATION_TYPE_ALERT,
   NOTIFICATION_TYPE_INFO,
 } from '../../utils/constants';
-import { formatDate } from '../../utils/dates';
 import { generateSerial } from '../../utils/string';
+import { BackupService } from '../../infrastructure/backup/backup.service';
 import { NotificationService } from '../notification/notification.service';
-import { spawn } from 'child_process';
 
 @Injectable()
 export class AdminService {
@@ -22,7 +23,9 @@ export class AdminService {
     private notificationModel: Model<Notification>,
     @InjectModel(File.name) private fileModel: Model<File>,
     @InjectModel(Report.name) private reportModel: Model<Report>,
+    private backupService: BackupService,
     private notificationService: NotificationService,
+    private configService: ConfigService,
   ) {}
 
   /**
@@ -32,37 +35,9 @@ export class AdminService {
    * @throws {Error} - If there is an error generating the backup
    */
   async generateBackups(user: any): Promise<string> {
-    //INFO: generate backups DB
-    const config = {
-      mongoHost: 'localhost',
-      mongoPort: '27017',
-      database: 'dashboard',
-      backupDir: './backups',
-    };
-
-    try {
-      const currentDate = new Date();
-      const formattedDate = formatDate(currentDate, 'yyyy-MM-DD_HH-mm-ss');
-      const backupPath = `${config.backupDir}/${formattedDate}`;
-
-      //NOTE: Generate backups
-      const dumpCommand = `mongodump --host ${config.mongoHost} --port ${config.mongoPort} --db ${config.database} --out ${backupPath}`;
-      await spawn(dumpCommand, { shell: true });
-
-      const message = `La copia de seguridad se ha generado con exito en la fecha ${formatDate(currentDate, FORMAT_DATE_SHORT)}`;
-      await this.notificationService.createGeneralNotification(
-        message,
-        'Copia de seguridad exitosa',
-        user,
-      );
-
-      // sendEmail('Backup exitoso', `Se ha realizado un backup de la base de datos ${config.database}`);
-      this.logger.log(message);
-      return message;
-    } catch (error) {
-      this.logger.error(`Error generando la copia de seguridad. ${error}`);
-      throw new Error('Error generando la copia de seguridad');
-    }
+    const result = await this.backupService.executeBackup(user);
+    this.logger.log(result.message);
+    return result.message;
   }
 
   /**
@@ -137,5 +112,93 @@ export class AdminService {
    */
   private async createNotification(title: string): Promise<void> {
     await this.notificationService.createNotification(title);
+  }
+
+  /**
+   * Get status information about the ideas.json file
+   *
+   * @returns Ideas file status
+   */
+  async getIdeasStatus(): Promise<{
+    ideasPath: string;
+    resolvedPath: string;
+    fileExists: boolean;
+    totalIdeas: number;
+    enDesarrollo: number;
+    pendientes: number;
+    lastModified: string | null;
+  }> {
+    const relativePath = this.configService.get<string>(
+      'IDEAS_JSON_PATH',
+      '../.opencode/skills/ideas/data/ideas.json',
+    );
+    const resolvedPath = path.resolve(process.cwd(), relativePath);
+    const fileExists = fs.existsSync(resolvedPath);
+
+    let totalIdeas = 0;
+    let enDesarrollo = 0;
+    let pendientes = 0;
+    let lastModified: string | null = null;
+
+    if (fileExists) {
+      try {
+        const raw = fs.readFileSync(resolvedPath, 'utf8');
+        const data = JSON.parse(raw);
+        const ideas = data.ideas || [];
+        totalIdeas = ideas.length;
+        enDesarrollo = ideas.filter(
+          (i: any) => i.estado === 'en_desarrollo',
+        ).length;
+        pendientes = ideas.filter(
+          (i: any) => i.estado === 'pendiente',
+        ).length;
+        const stats = fs.statSync(resolvedPath);
+        lastModified = stats.mtime.toISOString();
+      } catch (error) {
+        this.logger.error(`Error reading ideas.json: ${error.message}`);
+      }
+    }
+
+    return {
+      ideasPath: relativePath,
+      resolvedPath,
+      fileExists,
+      totalIdeas,
+      enDesarrollo,
+      pendientes,
+      lastModified,
+    };
+  }
+
+  /**
+   * Get all unique tags from ideas.json for autocomplete
+   *
+   * @returns List of unique tags sorted alphabetically
+   */
+  async getAvailableTags(): Promise<{ tags: string[] }> {
+    const relativePath = this.configService.get<string>(
+      'IDEAS_JSON_PATH',
+      '../.opencode/skills/ideas/data/ideas.json',
+    );
+    const resolvedPath = path.resolve(process.cwd(), relativePath);
+
+    if (!fs.existsSync(resolvedPath)) {
+      return { tags: [] };
+    }
+
+    try {
+      const raw = fs.readFileSync(resolvedPath, 'utf8');
+      const data = JSON.parse(raw);
+      const allTags: string[] = (data.ideas || [])
+        .flatMap((idea: any) => idea.tags || [])
+        .filter((tag: any) => tag && typeof tag === 'string' && tag.trim().length > 0)
+        .map((tag: string) => tag.trim().toLowerCase());
+
+      const uniqueTags = [...new Set(allTags)].sort();
+      return { tags: uniqueTags };
+    } catch (error) {
+      this.logger.error(`Error reading tags from ideas.json: ${error.message}`);
+      return { tags: [] };
+    }
   }
 }

@@ -65,6 +65,12 @@ export class Feedback {
 
   @Prop()
   event?: string;
+
+  @Prop({ default: false })
+  convertedToIdea?: boolean;
+
+  @Prop()
+  ideaId?: string;
 }
 
 export const FeedbackSchema = SchemaFactory.createForClass(Feedback);

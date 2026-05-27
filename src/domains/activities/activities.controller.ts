@@ -133,6 +133,7 @@ export class ActivitiesController {
     return this.activitiesService.create(createActivityDto);
   }
 
+  @BypassPermission()
   @Get()
   @ApiOperation({
     summary: 'Listar actividades (paginado + filtro por emoción)',
@@ -307,6 +308,7 @@ export class ActivitiesController {
     return this.activitiesService.softDelete(id);
   }
 
+  @BypassPermission()
   @Get('emotions/list')
   @ApiOperation({
     summary: 'Listar emociones disponibles (por actividades)',
@@ -321,6 +323,7 @@ export class ActivitiesController {
     return this.activitiesService.getAvailableEmotions();
   }
 
+  @BypassPermission()
   @Get('user/:userId')
   @ApiOperation({
     summary: 'Listar actividades de un usuario',
@@ -393,6 +396,7 @@ export class ActivitiesController {
     return this.activitiesService.getTodaysActivity();
   }
 
+  @BypassPermission()
   @Post(':id/:userId/submit')
   @ApiOperation({
     summary: 'Registrar respuesta de un usuario a una actividad',

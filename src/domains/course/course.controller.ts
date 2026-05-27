@@ -8,6 +8,7 @@ import {
   Put,
   Query,
 } from '@nestjs/common';
+import { BypassPermission } from 'src/infrastructure/auth/bypass-permission.decorator';
 import { RequirePermission } from 'src/infrastructure/auth/require-permission.decorator';
 import { CourseService } from './course.service';
 import { CreateCourseDto } from './dto/create-course.dto';
@@ -106,6 +107,7 @@ export class CourseController {
    * Obtener todos los cursos con filtros opcionales
    */
   @Get()
+  @BypassPermission()
   @ApiOperation({ summary: 'Listar todos los cursos' })
   @ApiQuery({ name: 'companyId', required: false, description: 'Filtrar por ID de compañía' })
   @ApiQuery({ name: 'status', required: false, description: 'Filtrar por estado (true/false)' })
@@ -115,6 +117,7 @@ export class CourseController {
     status: 200,
     description: 'Lista de cursos obtenida exitosamente',
   })
+  @Get()
   async findAll(
     @Query('companyId') companyId?: string,
     @Query('status') status?: string,

@@ -1,10 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Cron } from '@nestjs/schedule';
-import { spawn } from 'child_process';
 import { Model } from 'mongoose';
-import { FORMAT_DATE_SHORT } from '../../utils/constants';
-import { formatDate } from '../../utils/dates';
+import { BackupService } from '../../infrastructure/backup/backup.service';
 import { NotificationService } from '../notification/notification.service';
 import { CreateCronJobDto } from './dto/create-cron-job.dto';
 import { CronJob, CronJobDocument } from './schemas/cronJob.schema';
@@ -13,6 +11,7 @@ import { CronJob, CronJobDocument } from './schemas/cronJob.schema';
 export class CronJobService {
   constructor(
     @InjectModel(CronJob.name) private cronJobModel: Model<CronJobDocument>,
+    private backupService: BackupService,
     private notificationService: NotificationService,
   ) {}
 
@@ -34,31 +33,7 @@ export class CronJobService {
   }
 
   async executeBackup() {
-    const config = {
-      mongoHost: 'localhost',
-      mongoPort: '27017',
-      database: 'mia_wallet',
-      backupDir: './backups',
-    };
-
-    try {
-      const currentDate = new Date();
-      const formattedDate = formatDate(currentDate, 'yyyy-MM-DD_HH-mm-ss');
-      const backupPath = `${config.backupDir}/${formattedDate}`;
-
-      const dumpCommand = `mongodump --host ${config.mongoHost} --port ${config.mongoPort} --db ${config.database} --out ${backupPath}`;
-      await spawn(dumpCommand, { shell: true });
-
-      const message = `La copia de seguridad se ha generado con exito en la fecha ${formatDate(currentDate, FORMAT_DATE_SHORT)}`;
-      await this.notificationService.createGeneralNotification(
-        message,
-        'Copia de seguridad exitosa',
-      );
-
-      return { success: true, message };
-    } catch (error) {
-      throw new Error(`Error generating backup: ${error.message}`);
-    }
+    return this.backupService.executeBackup();
   }
 
   async executeApiCall() {

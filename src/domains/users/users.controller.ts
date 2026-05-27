@@ -223,6 +223,7 @@ export class UsersController {
     });
   }
 
+  @BypassPermission()
   @Post()
   @ApiOperation({
     summary: 'Actualizar un usuario',
@@ -319,6 +320,7 @@ export class UsersController {
     return this.usersService.findByUsername(username);
   }
 
+  @BypassPermission()
   @Get('id/:id')
   @ApiOperation({ summary: 'Obtener usuario por id' })
   @ApiParam({ name: 'id', description: 'ID del usuario.' })

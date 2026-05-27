@@ -21,6 +21,7 @@ import {
   ApiOkResponse,
   ApiCreatedResponse,
 } from '@nestjs/swagger';
+import { BypassPermission } from 'src/infrastructure/auth/bypass-permission.decorator';
 import { RequirePermission } from 'src/infrastructure/auth/require-permission.decorator';
 import { TestService } from './test.service';
 import { CreateTestDto } from './dto/create-test.dto';
@@ -66,6 +67,7 @@ export class TestController {
     return this.testService.create(createTestDto);
   }
 
+  @BypassPermission()
   @Get()
   @ApiOperation({ summary: 'Listar todos los tests (paginado)' })
   @ApiQuery({ name: 'page', required: false, example: 1 })
@@ -82,6 +84,7 @@ export class TestController {
     return this.testService.findAll(page, limit, search, category);
   }
 
+  @BypassPermission()
   @Get('by-testid/:testId')
   @ApiOperation({ summary: 'Obtener un test por su testId (string)' })
   @ApiParam({ name: 'testId', description: 'testId del test (ej: "1", "test-personalidad")' })

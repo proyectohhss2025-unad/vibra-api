@@ -42,6 +42,8 @@ import { PermissionCategoryModule } from './domains/permissionCategory/permissio
 import { DocumentTypeModule } from './domains/documentType/documentType.module';
 import { PushNotificationsModule } from './domains/push-notifications/push-notifications.module';
 import { ContactsModule } from './domains/contacts/contacts.module';
+import { IdeasModule } from './domains/ideas/ideas.module';
+import { BackupModule } from './infrastructure/backup/backup.module';
 
 @Module({
   imports: [
@@ -91,6 +93,8 @@ import { ContactsModule } from './domains/contacts/contacts.module';
     PushNotificationsModule,
     PasswordResetModule,
     ContactsModule,
+    IdeasModule,
+    BackupModule,
   ],
   providers: [
     EventsGateway,

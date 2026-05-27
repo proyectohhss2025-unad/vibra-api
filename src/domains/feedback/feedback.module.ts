@@ -1,4 +1,5 @@
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
 import { MulterModule } from '@nestjs/platform-express';
 import { Feedback, FeedbackSchema } from './schemas/feedback.schema';
@@ -10,6 +11,7 @@ import { AuthMiddleware } from 'src/infrastructure/auth/auth.middleware';
 
 @Module({
   imports: [
+    ConfigModule,
     MongooseModule.forFeature([
       { name: Feedback.name, schema: FeedbackSchema },
     ]),

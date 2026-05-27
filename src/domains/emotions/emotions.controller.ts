@@ -21,6 +21,7 @@ import {
   ApiProperty,
   ApiPropertyOptional,
 } from '@nestjs/swagger';
+import { BypassPermission } from 'src/infrastructure/auth/bypass-permission.decorator';
 import { RequirePermission } from 'src/infrastructure/auth/require-permission.decorator';
 import { CreateEmotionDto, UpdateEmotionDto } from './dto/create-emotion.dto';
 import { EmotionsService } from './emotions.service';
@@ -79,6 +80,7 @@ export class EmotionsController {
     return this.emotionsService.create(createEmotionDto);
   }
 
+  @BypassPermission()
   @Get()
   @ApiOperation({ summary: 'Listar emociones (paginado)' })
   @ApiQuery({ name: 'page', required: false, example: 1 })

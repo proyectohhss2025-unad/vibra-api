@@ -18,6 +18,7 @@ import { UsersService } from '../users/users.service';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 
 @Controller('api/auth')
 @ApiTags('Gestión de autenticación de usuarios')
@@ -155,5 +156,27 @@ export class AuthController {
       logout: true,
       isLogged: false,
     };
+  }
+
+  @Post('change-password')
+  @ApiOperation({ summary: 'Cambiar contraseña del usuario autenticado' })
+  @ApiBody({ type: ChangePasswordDto })
+  @ApiOkResponse({
+    description: 'Contraseña actualizada exitosamente.',
+    schema: {
+      type: 'object',
+      properties: { success: { type: 'boolean' } },
+    },
+  })
+  async changePassword(
+    @Request() req: any,
+    @Body() changePasswordDto: ChangePasswordDto,
+  ) {
+    const userId = req.user?._id || req.user?.sub;
+    return this.authService.changePassword(
+      userId,
+      changePasswordDto.currentPassword,
+      changePasswordDto.newPassword,
+    );
   }
 }

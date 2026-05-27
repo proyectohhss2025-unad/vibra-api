@@ -19,6 +19,7 @@ import {
   ApiQuery,
   ApiTags,
 } from '@nestjs/swagger';
+import { BypassPermission } from 'src/infrastructure/auth/bypass-permission.decorator';
 import { RequirePermission } from 'src/infrastructure/auth/require-permission.decorator';
 import { ConfigService } from './config.service';
 import { CreateConfigDto } from './dto/create-config.dto';
@@ -76,6 +77,7 @@ export class ConfigController {
   /**
    * Get a configuration by ID
    */
+  @BypassPermission()
   @Post('by-id')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Obtener configuración por id' })
@@ -209,6 +211,7 @@ export class ConfigController {
   /**
    * Validate if a user is allowed in a configuration
    */
+  @BypassPermission()
   @Post('validate-user')
   @ApiOperation({ summary: 'Validar usuario en configuración' })
   @ApiBody({

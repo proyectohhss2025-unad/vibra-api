@@ -99,7 +99,6 @@ class ParticipantsListDto {
 }
 
 @ApiTags('Participants')
-@RequirePermission('9')
 @Controller('api/participants')
 export class ParticipantController {
   constructor(private readonly participantService: ParticipantService) { }
@@ -162,6 +161,7 @@ export class ParticipantController {
   }
 
   // ─── Carga masiva CSV (legacy) ───
+  @RequirePermission('9')
   @Post('bulk')
   @UseInterceptors(FileInterceptor('file'))
   @ApiOperation({ summary: 'Carga masiva de participantes (CSV)' })
@@ -179,6 +179,7 @@ export class ParticipantController {
   }
 
   // ─── Listar participantes ───
+  @RequirePermission('9')
   @Get()
   @ApiOperation({ summary: 'Listar participantes' })
   @ApiQuery({ name: 'page', required: false, example: 1 })
@@ -198,6 +199,7 @@ export class ParticipantController {
   }
 
   // ─── Buscar ───
+  @RequirePermission('9')
   @Get('search')
   @ApiOperation({ summary: 'Buscar participantes' })
   @ApiQuery({ name: 'searchTerm', required: true, example: 'demo' })
@@ -207,6 +209,7 @@ export class ParticipantController {
   }
 
   // ─── Obtener por _id ───
+  @RequirePermission('9')
   @Get(':id')
   @ApiOperation({ summary: 'Obtener participante por _id' })
   @ApiParam({ name: 'id', description: 'ID del participante.' })
@@ -216,6 +219,7 @@ export class ParticipantController {
   }
 
   // ─── Actualizar ───
+  @BypassPermission()
   @Post('update')
   @ApiOperation({ summary: 'Actualizar participante' })
   @ApiBody({ type: UpdateParticipantDto })
@@ -225,6 +229,7 @@ export class ParticipantController {
   }
 
   // ─── Eliminar ───
+  @RequirePermission('9')
   @Post('delete')
   @ApiOperation({ summary: 'Eliminar participante' })
   @ApiBody({
@@ -240,6 +245,7 @@ export class ParticipantController {
   }
 
   // ─── Filtrar por fechas (legacy) ───
+  @RequirePermission('9')
   @Get('filter')
   @ApiOperation({ summary: 'Listar participantes por rango de fechas' })
   @ApiQuery({ name: 'startDate', required: false, example: '2026-01-01' })
@@ -262,6 +268,7 @@ export class ParticipantController {
   }
 
   // ─── Paginado (legacy) ───
+  @RequirePermission('9')
   @Get('paginated')
   @ApiOperation({ summary: 'Listar participantes (paginado)' })
   @ApiQuery({ name: 'page', required: false, example: 1 })

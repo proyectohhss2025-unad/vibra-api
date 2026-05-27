@@ -1,5 +1,6 @@
 import {
   Controller,
+  Get,
   Post,
   Body,
   HttpStatus,
@@ -12,6 +13,65 @@ import { ApiTags, ApiOperation, ApiBody, ApiResponse } from '@nestjs/swagger';
 @Controller('admin')
 export class AdminController {
   constructor(private readonly adminService: AdminService) {}
+
+  /**
+   * Get status of the ideas.json file for the admin panel
+   *
+   * @returns Ideas file status
+   */
+  @Get('ideas-status')
+  @ApiOperation({ summary: 'Obtener estado del archivo de ideas del backlog' })
+  @ApiResponse({
+    status: 200,
+    description: 'Estado del archivo ideas.json',
+    schema: {
+      type: 'object',
+      properties: {
+        ideasPath: { type: 'string' },
+        fileExists: { type: 'boolean' },
+        totalIdeas: { type: 'integer' },
+        lastModified: { type: 'string' },
+      },
+    },
+  })
+  async getIdeasStatus() {
+    try {
+      return await this.adminService.getIdeasStatus();
+    } catch (error) {
+      throw new HttpException(
+        { error: 'Error al leer el estado de ideas.json' },
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  /**
+   * Get all unique tags from ideas.json for autocomplete
+   *
+   * @returns List of unique tags
+   */
+  @Get('ideas-tags')
+  @ApiOperation({ summary: 'Obtener tags únicos del backlog de ideas (autocomplete)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Lista de tags únicos',
+    schema: {
+      type: 'object',
+      properties: {
+        tags: { type: 'array', items: { type: 'string' } },
+      },
+    },
+  })
+  async getAvailableTags() {
+    try {
+      return await this.adminService.getAvailableTags();
+    } catch (error) {
+      throw new HttpException(
+        { error: 'Error al obtener tags de ideas.json' },
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
 
   /**
    * Generate database backups

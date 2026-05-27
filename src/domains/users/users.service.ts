@@ -118,6 +118,42 @@ export class UsersService {
   }
 
   /**
+   * Busca un usuario por su ID
+   *
+   * @param id - ID del usuario
+   * @returns User | null
+   */
+  async findById(id: string): Promise<User | null> {
+    return await this.userModel.findById(id).exec();
+  }
+
+  /**
+   * Actualiza únicamente la contraseña de un usuario.
+   *
+   * @param userId - ID del usuario
+   * @param hashedPassword - Contraseña ya hasheada con bcrypt
+   * @returns User actualizado
+   */
+  async updatePassword(
+    userId: string,
+    hashedPassword: string,
+  ): Promise<User> {
+    const updated = await this.userModel
+      .findByIdAndUpdate(
+        userId,
+        { password: hashedPassword, editedAt: new Date() },
+        { new: true },
+      )
+      .select('-password')
+      .exec();
+
+    if (!updated) {
+      throw new NotFoundException(`Usuario con id ${userId} no encontrado`);
+    }
+    return updated;
+  }
+
+  /**
    * @returns User[]
    */
   async findAll(): Promise<any> {

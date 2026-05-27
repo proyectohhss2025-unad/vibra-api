@@ -26,6 +26,7 @@ import {
 } from '@nestjs/swagger';
 import { parse } from 'csv-parse/sync';
 import { readFileSync } from 'fs';
+import { BypassPermission } from 'src/infrastructure/auth/bypass-permission.decorator';
 import { RequirePermission } from 'src/infrastructure/auth/require-permission.decorator';
 import { RolesService } from './roles.service';
 import { Role } from './schemas/role.schema';
@@ -133,6 +134,7 @@ export class RolesController {
   /**
    * Obtiene todos los roles con paginación
    */
+  @BypassPermission()
   @Get()
   @ApiOperation({ summary: 'Obtener todos los roles con paginación' })
   @ApiQuery({ name: 'page', required: false, example: 1 })

@@ -1,10 +1,19 @@
-import { Injectable, Logger } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  InternalServerErrorException,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Feedback, FeedbackDocument } from './schemas/feedback.schema';
 import { generateSerial } from '../../utils/string';
 import { parse } from 'csv-parse';
 import * as fs from 'fs';
+import * as path from 'path';
+import { ConvertToIdeaDto } from './dto/convert-to-idea.dto';
 
 @Injectable()
 export class FeedbackService {
@@ -12,7 +21,20 @@ export class FeedbackService {
 
   constructor(
     @InjectModel(Feedback.name) private feedbackModel: Model<FeedbackDocument>,
-  ) {}
+    private configService: ConfigService,
+  ) {
+    this.ideasJsonPath = this.resolveIdeasJsonPath();
+  }
+
+  private ideasJsonPath: string;
+
+  private resolveIdeasJsonPath(): string {
+    const relativePath = this.configService.get<string>(
+      'IDEAS_JSON_PATH',
+      '../.opencode/skills/ideas/data/ideas.json',
+    );
+    return path.resolve(process.cwd(), relativePath);
+  }
 
   /**
    * Inserts an array of feedbacks into the database
@@ -328,5 +350,93 @@ export class FeedbackService {
       this.logger.error(`Error updating feedback status: ${error.message}`);
       throw new Error(`Error updating feedback status: ${error.message}`);
     }
+  }
+
+  /**
+   * Converts a feedback into a backlog idea by writing to ideas.json
+   *
+   * @param id The feedback id
+   * @param dto The conversion data (title, description, priority, tags)
+   * @returns The created idea info
+   */
+  async convertToIdea(
+    id: string,
+    dto: ConvertToIdeaDto,
+  ): Promise<{ success: boolean; ideaId: string; idea: any }> {
+    // 1. Find feedback
+    const feedback = await this.feedbackModel.findById(id);
+    if (!feedback) {
+      throw new NotFoundException('Feedback no encontrado');
+    }
+    if (feedback.convertedToIdea) {
+      throw new BadRequestException(
+        `Este feedback ya fue convertido a la idea ${feedback.ideaId}`,
+      );
+    }
+
+    // 2. Validate ideas.json exists
+    if (!fs.existsSync(this.ideasJsonPath)) {
+      throw new InternalServerErrorException(
+        `Archivo de ideas no encontrado en: ${this.ideasJsonPath}. Verifique la configuración IDEAS_JSON_PATH en .env`,
+      );
+    }
+
+    // 3. Read ideas.json
+    const raw = fs.readFileSync(this.ideasJsonPath, 'utf8');
+    const ideasData = JSON.parse(raw);
+
+    // 4. Generate auto-incremental ID (vibra-NNN)
+    const ids = (ideasData.ideas || [])
+      .map((i: any) => {
+        const match = i.id?.match(/vibra-(\d+)/i);
+        return match ? parseInt(match[1], 10) : 0;
+      })
+      .filter((n: number) => !isNaN(n));
+    const maxId = ids.length > 0 ? Math.max(...ids) : 0;
+    const newId = `vibra-${String(maxId + 1).padStart(3, '0')}`;
+
+    // 5. Build new idea entry
+    const newIdea = {
+      id: newId,
+      descripcion: dto.title || feedback.title || 'Sin título',
+      detalle: dto.description || feedback.description || '',
+      tags: dto.tags?.length ? dto.tags : ['feedback'],
+      prioridad: dto.priority || 'media',
+      estado: 'pendiente',
+      requerimiento: null,
+      fechas: {
+        creacion: new Date().toISOString(),
+        modificacion: new Date().toISOString(),
+        desarrollo_inicio: null,
+        desarrollo_fin: null,
+      },
+      historial: [
+        {
+          fecha: new Date().toISOString(),
+          accion: 'creada',
+          detalle: `Idea creada desde feedback #${feedback.serial || id}`,
+        },
+      ],
+    };
+
+    // 6. Write to ideas.json
+    ideasData.ideas = ideasData.ideas || [];
+    ideasData.ideas.push(newIdea);
+    fs.writeFileSync(
+      this.ideasJsonPath,
+      JSON.stringify(ideasData, null, 2),
+      'utf8',
+    );
+
+    // 7. Mark feedback as converted
+    feedback.convertedToIdea = true;
+    feedback.ideaId = newId;
+    await feedback.save();
+
+    this.logger.log(
+      `Feedback ${id} convertido a idea ${newId} exitosamente`,
+    );
+
+    return { success: true, ideaId: newId, idea: newIdea };
   }
 }

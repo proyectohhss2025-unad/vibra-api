@@ -1,6 +1,7 @@
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { AuthMiddleware } from 'src/infrastructure/auth/auth.middleware';
+import { BackupModule } from '../../infrastructure/backup/backup.module';
 import { NotificationModule } from '../notification/notification.module';
 import { CronJobController } from './cronJob.controller';
 import { CronJobService } from './cronJob.service';
@@ -10,6 +11,7 @@ import { CronJob, CronJobSchema } from './schemas/cronJob.schema';
   imports: [
     MongooseModule.forFeature([{ name: CronJob.name, schema: CronJobSchema }]),
     NotificationModule,
+    BackupModule,
   ],
   controllers: [CronJobController],
   providers: [CronJobService],

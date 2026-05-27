@@ -39,6 +39,7 @@ export class CompanyController {
    * @param page - Page number
    * @param rows - Number of rows per page
    */
+  @BypassPermission()
   @ApiOperation({ summary: 'Obtener todas las compañías con paginación' })
   @ApiQuery({ name: 'page', required: false, description: 'Número de página', example: '1' })
   @ApiQuery({ name: 'rows', required: false, description: 'Número de filas por página', example: '10' })

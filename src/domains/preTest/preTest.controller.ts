@@ -64,7 +64,6 @@ class PreTestsPaginatedDto {
 
 @ApiTags('PreTest')
 @Controller('api/pretests')
-@RequirePermission('15')
 export class PreTestController {
   constructor(private readonly preTestService: PreTestService) { }
 
@@ -73,6 +72,7 @@ export class PreTestController {
    * @param createTestDto - Data transfer object for creating a pre-test
    * @returns The created pre-test
    */
+  @RequirePermission('15')
   @ApiOperation({ summary: 'Create a new pre-test' })
   @ApiResponse({
     status: 201,
@@ -90,6 +90,7 @@ export class PreTestController {
    * @param limit - Number of items per page
    * @returns List of pre-tests
    */
+  @RequirePermission('15')
   @ApiOperation({ summary: 'Retrieve all pre-tests' })
   @ApiResponse({ status: 200, description: 'List of pre-tests.' })
   @Get()
@@ -100,6 +101,7 @@ export class PreTestController {
     return this.preTestService.findAll(page, limit);
   }
 
+  @RequirePermission('15')
   @Get('by-test/:testId')
   @ApiOperation({
     summary: 'Obtener respuestas de un test',
@@ -153,6 +155,7 @@ export class PreTestController {
    * @param updateTestDto - Data transfer object for updating a pre-test
    * @returns The updated pre-test
    */
+  @RequirePermission('15')
   @ApiOperation({ summary: 'Update a pre-test' })
   @ApiResponse({
     status: 200,
@@ -169,6 +172,7 @@ export class PreTestController {
    * @param id - ID of the pre-test to remove
    * @returns A confirmation message
    */
+  @RequirePermission('15')
   @ApiOperation({ summary: 'Remove a pre-test' })
   @ApiResponse({
     status: 200,
@@ -207,6 +211,7 @@ export class PreTestController {
    * @param testId - Test ID
    * @returns User and test responses
    */
+  @RequirePermission('15')
   @ApiOperation({ summary: 'Get user and test responses' })
   @ApiResponse({
     status: 200,
@@ -242,6 +247,7 @@ export class PreTestController {
    * Get all pre-test results
    * @returns List of all pre-test results
    */
+  @RequirePermission('15')
   @ApiOperation({ summary: 'Get all pre-test results' })
   @ApiResponse({ status: 200, description: 'List of all pre-test results.' })
   @Get('result-all')

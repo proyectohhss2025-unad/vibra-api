@@ -10,6 +10,7 @@ import { PermissionTemplate } from '../permissionTemplates/schemas/permissionTem
 import { Permission } from '../permissions/schemas/permission.schema';
 import { UserPermission } from '../userPermissions/schemas/userPermission.schema';
 import { LoginDto } from './dto/login.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 
 // Interfaz para almacenar tokens invalidados
 interface InvalidatedToken {
@@ -321,5 +322,47 @@ export class AuthService {
         this.invalidatedTokens.delete(userId);
       }
     }
+  }
+
+  /**
+   * Cambia la contraseña de un usuario autenticado.
+   * Verifica la contraseña actual y guarda la nueva con hash bcrypt.
+   *
+   * @param userId - ID del usuario (extraído del JWT)
+   * @param currentPassword - Contraseña actual para verificar
+   * @param newPassword - Nueva contraseña a guardar
+   * @returns { success: true } si todook
+   * @throws UnauthorizedException si la contraseña actual es incorrecta
+   */
+  async changePassword(
+    userId: string,
+    currentPassword: string,
+    newPassword: string,
+  ): Promise<{ success: boolean }> {
+    const user = await this.usersService.findById(userId);
+    if (!user) {
+      throw new UnauthorizedException('Usuario no encontrado');
+    }
+
+    // Verificar contraseña actual
+    const isPasswordValid = bcrypt.compareSync(currentPassword, user.password);
+    if (!isPasswordValid) {
+      throw new UnauthorizedException('La contraseña actual es incorrecta');
+    }
+
+    // Verificar que la nueva no sea igual a la actual
+    const isSamePassword = bcrypt.compareSync(newPassword, user.password);
+    if (isSamePassword) {
+      throw new UnauthorizedException(
+        'La nueva contraseña no puede ser igual a la actual',
+      );
+    }
+
+    // Hashear y guardar nueva contraseña
+    const saltRounds = 10;
+    const hashedPassword = bcrypt.hashSync(newPassword, saltRounds);
+    await this.usersService.updatePassword(userId, hashedPassword);
+
+    return { success: true };
   }
 }

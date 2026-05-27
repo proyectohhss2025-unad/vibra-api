@@ -13,6 +13,7 @@ import {
 } from '@nestjs/common';
 import { FeedbackService } from './feedback.service';
 import { Feedback } from './schemas/feedback.schema';
+import { ConvertToIdeaDto } from './dto/convert-to-idea.dto';
 import { FileInterceptor } from '@nestjs/platform-express';
 import {
   ApiBearerAuth,
@@ -213,6 +214,32 @@ export class FeedbackController {
   ): Promise<Feedback> {
     const userId = req.user?.userId || 'system';
     return this.feedbackService.updateStatusFeedback(id, isActive, userId);
+  }
+
+  /**
+   * Convert a feedback into a backlog idea
+   * @param id Feedback id
+   * @param dto Conversion data (title, description, priority, tags)
+   * @returns The created idea info
+   */
+  @Post(':id/convert-to-idea')
+  @ApiOperation({ summary: 'Convertir feedback en idea del backlog' })
+  @ApiParam({ name: 'id', description: 'ID del feedback.' })
+  @ApiOkResponse({
+    description: 'Feedback convertido a idea exitosamente.',
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean' },
+        ideaId: { type: 'string', example: 'vibra-072' },
+      },
+    },
+  })
+  async convertToIdea(
+    @Param('id') id: string,
+    @Body() dto: ConvertToIdeaDto,
+  ): Promise<{ success: boolean; ideaId: string; idea: any }> {
+    return this.feedbackService.convertToIdea(id, dto);
   }
 
   /**
