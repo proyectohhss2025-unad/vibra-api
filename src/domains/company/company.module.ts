@@ -4,7 +4,7 @@ import { AuthMiddleware } from 'src/infrastructure/auth/auth.middleware';
 import { LoggerModule } from '../logger';
 import { Role, RoleSchema } from '../roles/schemas/role.schema';
 import { User, UserSchema } from '../users/schemas/user.schema';
-import { UsersService } from '../users/users.service';
+import { UsersModule } from '../users/users.module';
 import { CompanyController } from './company.controller';
 import { CompanyService } from './company.service';
 import { Company, CompanySchema } from './schemas/company.schema';
@@ -17,9 +17,10 @@ import { Company, CompanySchema } from './schemas/company.schema';
       { name: Role.name, schema: RoleSchema },
     ]),
     LoggerModule,
+    UsersModule,
   ],
   controllers: [CompanyController],
-  providers: [CompanyService, UsersService],
+  providers: [CompanyService],
   exports: [CompanyService],
 })
 export class CompanyModule implements NestModule {

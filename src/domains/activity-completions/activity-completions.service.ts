@@ -4,7 +4,11 @@ import { Model, Types } from 'mongoose';
 import { AppLoggerService } from '../../helpers/logger/logger.service';
 import { CreateCompletionDto } from './dto/create-completion.dto';
 import { ActivityCompletion } from './schemas/activity-completion.schema';
-import { Participant, calculateLevel } from '../participant/schemas/participant.schema';
+import {
+  Participant,
+  calculateLevel,
+} from '../participant/schemas/participant.schema';
+import { getColombiaDayRange } from '../../utils/dates';
 
 @Injectable()
 export class ActivityCompletionsService {
@@ -37,14 +41,18 @@ export class ActivityCompletionsService {
 
     // ─── Actualizar puntos, nivel y estadísticas del participante ───
     try {
-      const participant = await this.participantModel.findById(dto.participant).exec();
+      const participant = await this.participantModel
+        .findById(dto.participant)
+        .exec();
       if (participant) {
-        const totalPoints = (participant.points || 0) + (dto.achievedScore || 0);
+        const totalPoints =
+          (participant.points || 0) + (dto.achievedScore || 0);
         const newLevel = calculateLevel(totalPoints);
 
         const updateFields: Record<string, any> = {
           points: totalPoints,
-          totalActivitiesCompleted: (participant.totalActivitiesCompleted || 0) + 1,
+          totalActivitiesCompleted:
+            (participant.totalActivitiesCompleted || 0) + 1,
           lastActivityDate: new Date(),
         };
 
@@ -67,7 +75,9 @@ export class ActivityCompletionsService {
         }
       }
     } catch (err) {
-      this.logger.error(`Error updating points for ${dto.participant}: ${err.message}`);
+      this.logger.error(
+        `Error updating points for ${dto.participant}: ${err.message}`,
+      );
     }
 
     return saved;
@@ -95,7 +105,12 @@ export class ActivityCompletionsService {
     participantId: string,
     page: number = 1,
     limit: number = 20,
-  ): Promise<{ data: ActivityCompletion[]; total: number; page: number; limit: number }> {
+  ): Promise<{
+    data: ActivityCompletion[];
+    total: number;
+    page: number;
+    limit: number;
+  }> {
     const skip = (page - 1) * limit;
 
     const [data, total] = await Promise.all([
@@ -137,17 +152,24 @@ export class ActivityCompletionsService {
       .exec();
 
     const totalParticipations = completions.length;
-    const totalAchievedScore = completions.reduce((s, c) => s + c.achievedScore, 0);
-    const totalPlannedScore = completions.reduce((s, c) => s + c.plannedScore, 0);
-    const averagePercent = totalPlannedScore > 0
-      ? Math.round((totalAchievedScore / totalPlannedScore) * 100)
-      : 0;
-    const bestScore = completions.length > 0
-      ? Math.max(...completions.map((c) => c.achievedScore))
-      : 0;
-    const lastActivityDate = completions.length > 0
-      ? completions[0].completedAt
-      : null;
+    const totalAchievedScore = completions.reduce(
+      (s, c) => s + c.achievedScore,
+      0,
+    );
+    const totalPlannedScore = completions.reduce(
+      (s, c) => s + c.plannedScore,
+      0,
+    );
+    const averagePercent =
+      totalPlannedScore > 0
+        ? Math.round((totalAchievedScore / totalPlannedScore) * 100)
+        : 0;
+    const bestScore =
+      completions.length > 0
+        ? Math.max(...completions.map((c) => c.achievedScore))
+        : 0;
+    const lastActivityDate =
+      completions.length > 0 ? completions[0].completedAt : null;
 
     // Calcular posición en el ranking global (por suma de puntos)
     const rankingPosition = await this.getRankingPosition(participantId);
@@ -158,9 +180,10 @@ export class ActivityCompletionsService {
       activityTitle: (c.activity as any)?.title || 'Sin título',
       achievedScore: c.achievedScore,
       plannedScore: c.plannedScore,
-      percent: c.plannedScore > 0
-        ? Math.round((c.achievedScore / c.plannedScore) * 100)
-        : 0,
+      percent:
+        c.plannedScore > 0
+          ? Math.round((c.achievedScore / c.plannedScore) * 100)
+          : 0,
       timeSpent: c.timeSpent,
       gamesCompleted: c.gamesCompleted,
       completedAt: c.completedAt,
@@ -181,12 +204,14 @@ export class ActivityCompletionsService {
   /**
    * Obtiene el ranking global de participantes por puntaje acumulado.
    */
-  async getRanking(limit: number = 20): Promise<{
-    position: number;
-    participantId: string;
-    totalScore: number;
-    totalParticipations: number;
-  }[]> {
+  async getRanking(limit: number = 20): Promise<
+    {
+      position: number;
+      participantId: string;
+      totalScore: number;
+      totalParticipations: number;
+    }[]
+  > {
     const ranking = await this.completionModel.aggregate([
       {
         $group: {
@@ -250,14 +275,11 @@ export class ActivityCompletionsService {
    * Obtiene el número de completaciones registradas hoy.
    */
   async getTodayCount(): Promise<number> {
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
-    const todayEnd = new Date();
-    todayEnd.setHours(23, 59, 59, 999);
+    const { start, end } = getColombiaDayRange();
 
     return this.completionModel
       .countDocuments({
-        completedAt: { $gte: todayStart, $lte: todayEnd },
+        completedAt: { $gte: start, $lte: end },
       })
       .exec();
   }

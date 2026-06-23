@@ -40,6 +40,8 @@ class TestResponseDto {
   timeLimit?: number;
   passingScore?: number;
   isActive: boolean;
+  showAtStart: boolean;
+  showAtEnd: boolean;
   questions: any[];
   tags?: string[];
   version?: number;
@@ -61,7 +63,10 @@ export class TestController {
 
   @Post()
   @ApiOperation({ summary: 'Crear un nuevo test' })
-  @ApiCreatedResponse({ description: 'Test creado exitosamente.', type: TestResponseDto })
+  @ApiCreatedResponse({
+    description: 'Test creado exitosamente.',
+    type: TestResponseDto,
+  })
   @ApiResponse({ status: 409, description: 'Conflicto: testId ya existe.' })
   async create(@Body() createTestDto: CreateTestDto): Promise<Test> {
     return this.testService.create(createTestDto);
@@ -87,18 +92,45 @@ export class TestController {
   @BypassPermission()
   @Get('by-testid/:testId')
   @ApiOperation({ summary: 'Obtener un test por su testId (string)' })
-  @ApiParam({ name: 'testId', description: 'testId del test (ej: "1", "test-personalidad")' })
+  @ApiParam({
+    name: 'testId',
+    description: 'testId del test (ej: "1", "test-personalidad")',
+  })
   @ApiOkResponse({ type: TestResponseDto })
   @ApiResponse({ status: 404, description: 'Test no encontrado.' })
   async findByTestId(@Param('testId') testId: string): Promise<Test> {
     return this.testService.findByTestId(testId);
   }
 
+  @BypassPermission()
+  @Get('pending-by-type')
+  @ApiOperation({
+    summary:
+      'Obtener tests pendientes por tipo (initial/final) para un usuario',
+  })
+  @ApiQuery({
+    name: 'type',
+    required: true,
+    enum: ['initial', 'final'],
+    description: 'Tipo de test',
+  })
+  @ApiQuery({ name: 'userId', required: true, description: 'ID del usuario' })
+  @ApiOkResponse({ description: 'Lista de tests pendientes' })
+  async findPendingByType(
+    @Query('type') type: 'initial' | 'final',
+    @Query('userId') userId: string,
+  ) {
+    return this.testService.findPendingByType(type, userId);
+  }
+
+  @BypassPermission()
   @Get('search')
   @ApiOperation({ summary: 'Buscar tests por término' })
   @ApiQuery({ name: 'searchTerm', required: true, example: 'personalidad' })
   @ApiOkResponse({ type: [TestResponseDto] })
-  async search(@Query('searchTerm') searchTerm: string): Promise<{ data: Test[] }> {
+  async search(
+    @Query('searchTerm') searchTerm: string,
+  ): Promise<{ data: Test[] }> {
     const data = await this.testService.search(searchTerm);
     return { data };
   }

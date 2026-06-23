@@ -10,7 +10,10 @@ export class PermissionCategoryController {
 
   @Get('all')
   @ApiOperation({ summary: 'Listar categorías de permisos' })
-  @ApiOkResponse({ description: 'Lista de categorías.', type: [PermissionCategory] })
+  @ApiOkResponse({
+    description: 'Lista de categorías.',
+    type: [PermissionCategory],
+  })
   async findAll(@Query('page') page?: string, @Query('rows') rows?: string) {
     const data = await this.categoryService.findAll();
     return { items: data, total: data.length };

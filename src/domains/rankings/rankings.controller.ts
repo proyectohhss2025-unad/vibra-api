@@ -1,5 +1,11 @@
 import {
-  Controller, Get, HttpException, HttpStatus, Logger, Param, Query,
+  Controller,
+  Get,
+  HttpException,
+  HttpStatus,
+  Logger,
+  Param,
+  Query,
 } from '@nestjs/common';
 import {
   ApiOkResponse,
@@ -30,11 +36,16 @@ export class RankingsController {
     description: 'Ranking general',
     type: RankingResponseDto,
   })
-  async getGeneral(@Query() query: RankingQueryDto): Promise<RankingResponseDto> {
+  async getGeneral(
+    @Query() query: RankingQueryDto,
+  ): Promise<RankingResponseDto> {
     try {
       return await this.rankingsRestService.getGeneral(query);
     } catch (error) {
-      this.logger.error(`Error en GET /api/rankings/general: ${error.message}`, error.stack);
+      this.logger.error(
+        `Error en GET /api/rankings/general: ${error.message}`,
+        error.stack,
+      );
       throw new HttpException(
         { message: 'Error al obtener ranking general', error: error.message },
         HttpStatus.INTERNAL_SERVER_ERROR,
@@ -61,7 +72,10 @@ export class RankingsController {
     try {
       return await this.rankingsRestService.getByCourse(courseId, query);
     } catch (error) {
-      this.logger.error(`Error en GET /api/rankings/course/${courseId}: ${error.message}`, error.stack);
+      this.logger.error(
+        `Error en GET /api/rankings/course/${courseId}: ${error.message}`,
+        error.stack,
+      );
       throw new HttpException(
         { message: 'Error al obtener ranking del curso', error: error.message },
         HttpStatus.INTERNAL_SERVER_ERROR,
@@ -76,7 +90,10 @@ export class RankingsController {
     description:
       'Obtiene el ranking de participantes de una institución específica ordenados por puntaje.',
   })
-  @ApiParam({ name: 'institutionId', description: 'ID de la institución (company)' })
+  @ApiParam({
+    name: 'institutionId',
+    description: 'ID de la institución (company)',
+  })
   @ApiOkResponse({
     description: 'Ranking de la institución',
     type: RankingResponseDto,
@@ -86,11 +103,20 @@ export class RankingsController {
     @Query() query: RankingQueryDto,
   ): Promise<RankingResponseDto> {
     try {
-      return await this.rankingsRestService.getByInstitution(institutionId, query);
+      return await this.rankingsRestService.getByInstitution(
+        institutionId,
+        query,
+      );
     } catch (error) {
-      this.logger.error(`Error en GET /api/rankings/institution/${institutionId}: ${error.message}`, error.stack);
+      this.logger.error(
+        `Error en GET /api/rankings/institution/${institutionId}: ${error.message}`,
+        error.stack,
+      );
       throw new HttpException(
-        { message: 'Error al obtener ranking de institución', error: error.message },
+        {
+          message: 'Error al obtener ranking de institución',
+          error: error.message,
+        },
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }

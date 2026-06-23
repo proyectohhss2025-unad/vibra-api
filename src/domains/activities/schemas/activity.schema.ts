@@ -71,36 +71,48 @@ export class Activity extends Document {
     type: String,
     enum: ['reto', 'evento_personal', 'actividad_pares', 'otro'],
     default: 'evento_personal',
-    index: true,
   })
   type?: string;
 
   @Prop({
-    type: [{
-      _id: false,
-      emoji: { type: String, required: true },
-      message: { type: String, required: true },
-      category: {
-        type: String,
-        enum: ['start', 'question', 'wordsearch', 'matching', 'emotionbox', 'dicegame', 'complete', null],
-        default: null,
+    type: [
+      {
+        _id: false,
+        emoji: { type: String, required: true },
+        message: { type: String, required: true },
+        category: {
+          type: String,
+          enum: [
+            'start',
+            'question',
+            'wordsearch',
+            'matching',
+            'emotionbox',
+            'dicegame',
+            'complete',
+            null,
+          ],
+          default: null,
+        },
       },
-    }],
+    ],
     default: [],
   })
   tips: { emoji: string; message: string; category?: string }[];
 
   @Prop({
-    type: [{
-      _id: false,
-      type: {
-        type: String,
-        enum: ['WordSearch', 'MatchingConcepts', 'DiceGame', 'EmotionBox'],
-        required: true,
+    type: [
+      {
+        _id: false,
+        type: {
+          type: String,
+          enum: ['WordSearch', 'MatchingConcepts', 'DiceGame', 'EmotionBox'],
+          required: true,
+        },
+        config: { type: MongooseSchema.Types.Mixed, required: true },
+        order: { type: Number, default: 0 },
       },
-      config: { type: MongooseSchema.Types.Mixed, required: true },
-      order: { type: Number, default: 0 },
-    }],
+    ],
     default: [],
   })
   games: Array<{

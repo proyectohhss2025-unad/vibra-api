@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { DocumentType } from './schemas/documentType.model';
@@ -10,21 +14,30 @@ export class DocumentTypeService {
   constructor(
     @InjectModel(DocumentType.name)
     private readonly documentTypeModel: Model<DocumentType>,
-  ) { }
+  ) {}
 
-  async create(createDocumentTypeDto: CreateDocumentTypeDto): Promise<DocumentType> {
+  async create(
+    createDocumentTypeDto: CreateDocumentTypeDto,
+  ): Promise<DocumentType> {
     const { name } = createDocumentTypeDto;
-    const existing = await this.documentTypeModel.findOne({ name, deleted: false });
+    const existing = await this.documentTypeModel.findOne({
+      name,
+      deleted: false,
+    });
 
     if (existing) {
-      throw new ConflictException('A document type with that name already exists');
+      throw new ConflictException(
+        'A document type with that name already exists',
+      );
     }
 
     const documentType = new this.documentTypeModel(createDocumentTypeDto);
     return documentType.save();
   }
 
-  async update(updateDocumentTypeDto: UpdateDocumentTypeDto): Promise<DocumentType> {
+  async update(
+    updateDocumentTypeDto: UpdateDocumentTypeDto,
+  ): Promise<DocumentType> {
     const { _id, ...updateData } = updateDocumentTypeDto;
     const documentType = await this.documentTypeModel.findByIdAndUpdate(
       _id,
@@ -52,7 +65,9 @@ export class DocumentTypeService {
   }
 
   async findByName(name: string): Promise<DocumentType> {
-    const documentType = await this.documentTypeModel.findOne({ name, deleted: false }).exec();
+    const documentType = await this.documentTypeModel
+      .findOne({ name, deleted: false })
+      .exec();
     if (!documentType) {
       throw new NotFoundException('Document type not found');
     }
@@ -74,7 +89,10 @@ export class DocumentTypeService {
   }
 
   async getCountAll(query: any): Promise<{ count: number }> {
-    const count = await this.documentTypeModel.countDocuments({ ...query, deleted: false });
+    const count = await this.documentTypeModel.countDocuments({
+      ...query,
+      deleted: false,
+    });
     return { count };
   }
 }

@@ -35,4 +35,3 @@ export class CreatePermissionTemplateDto {
   @IsString()
   createdBy?: string;
 }
-

@@ -32,7 +32,8 @@ export class PasswordResetController {
       properties: {
         message: {
           type: 'string',
-          example: 'Si el email existe, recibirás un enlace de restablecimiento',
+          example:
+            'Si el email existe, recibirás un enlace de restablecimiento',
         },
       },
     },

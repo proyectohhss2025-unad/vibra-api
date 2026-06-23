@@ -52,5 +52,3 @@ export class UpdateNotificationDto {
   @IsBoolean()
   isActive?: boolean;
 }
-
-

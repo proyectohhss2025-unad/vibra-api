@@ -206,4 +206,24 @@ export class RolesService {
     this.logger.log(`Role removed successfully: ${deletedRole._id}`);
     return deletedRole;
   }
+
+  async search(searchTerm: string): Promise<Partial<Role>[]> {
+    if (!searchTerm || searchTerm === 'all') {
+      return this.roleModel.find().limit(20).sort({ createdAt: -1 }).exec();
+    }
+    const regex = new RegExp(searchTerm, 'i');
+    return this.roleModel
+      .find({
+        $or: [
+          { name: { $regex: regex } },
+          { description: { $regex: regex } },
+          { serial: { $regex: regex } },
+          { createdBy: { $regex: regex } },
+          { event: { $regex: regex } },
+        ],
+      })
+      .limit(20)
+      .sort({ createdAt: -1 })
+      .exec();
+  }
 }

@@ -65,7 +65,7 @@ class PreTestsPaginatedDto {
 @ApiTags('PreTest')
 @Controller('api/pretests')
 export class PreTestController {
-  constructor(private readonly preTestService: PreTestService) { }
+  constructor(private readonly preTestService: PreTestService) {}
 
   /**
    * Create a new pre-test
@@ -105,11 +105,23 @@ export class PreTestController {
   @Get('by-test/:testId')
   @ApiOperation({
     summary: 'Obtener respuestas de un test',
-    description: 'Retorna las respuestas de usuarios para un test específico con paginación.',
+    description:
+      'Retorna las respuestas de usuarios para un test específico con paginación y filtros.',
   })
   @ApiParam({ name: 'testId', description: 'ID del test' })
   @ApiQuery({ name: 'page', required: false, example: 1 })
   @ApiQuery({ name: 'limit', required: false, example: 10 })
+  @ApiQuery({
+    name: 'userId',
+    required: false,
+    description: 'Filtrar por ID de usuario (en string)',
+  })
+  @ApiQuery({
+    name: 'dateFrom',
+    required: false,
+    description: 'Fecha inicio (ISO)',
+  })
+  @ApiQuery({ name: 'dateTo', required: false, description: 'Fecha fin (ISO)' })
   @ApiOkResponse({
     schema: {
       type: 'object',
@@ -123,18 +135,27 @@ export class PreTestController {
     @Param('testId') testId: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
+    @Query('userId') userId?: string,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string,
   ) {
     const pageNum = Number(page) || 1;
     const limitNum = Number(limit) || 10;
-    return this.preTestService.findByTestId(testId, pageNum, limitNum);
+    return this.preTestService.findByTestId(
+      testId,
+      pageNum,
+      limitNum,
+      userId,
+      dateFrom,
+      dateTo,
+    );
   }
 
   @BypassPermission()
   @Get('count-all-pretests')
   @ApiOperation({
     summary: 'Obtener el número total de pretests',
-    description:
-      'Obtiene el número total de pretests registrados.',
+    description: 'Obtiene el número total de pretests registrados.',
   })
   @ApiOkResponse({
     description: 'Número total de pretests obtenido exitosamente.',
@@ -265,7 +286,11 @@ export class PreTestController {
   @ApiResponse({ status: 200, description: 'The pre-test result.' })
   @ApiResponse({ status: 404, description: 'Pre-test result not found.' })
   @Get('result/:id')
-  @ApiParam({ name: 'id', description: 'ID del resultado (ObjectId).', example: '66c9cce47e6a95e98116c0ab' })
+  @ApiParam({
+    name: 'id',
+    description: 'ID del resultado (ObjectId).',
+    example: '66c9cce47e6a95e98116c0ab',
+  })
   @ApiOkResponse({ type: PreTestDto })
   async getResultById(@Param('id') id: string) {
     return this.preTestService.getPreTestResultById(id);
@@ -274,25 +299,40 @@ export class PreTestController {
   /**
    * Get test completion status for a user
    *
-   * Retorna el estado de todos los tests activos para un usuario:
-   * cuáles ha completado, cuáles faltan y si ya puede continuar.
+   * Retorna el estado de los tests activos para un usuario según el tipo solicitado:
+   * - Sin type: todos los tests activos (backward compatible)
+   * - type=initial: solo tests con showAtStart=true
+   * - type=final: solo tests con showAtEnd=true
    *
    * @param userId - ID del usuario (documentNumber)
+   * @param type - Opcional: 'initial' | 'final'
    * @returns Estado de completitud de tests
    */
   @ApiOperation({
     summary: 'Get test completion status for a user',
     description:
-      'Retorna el estado de todos los tests activos para un usuario: cuáles ha completado, cuáles faltan y si ya puede continuar.',
+      'Retorna el estado de los tests activos para un usuario. ' +
+      'Usar ?type=initial para filtrar tests de inicio (showAtStart) o ' +
+      '?type=final para tests de cierre (showAtEnd). Sin type, retorna todos los activos.',
   })
   @ApiResponse({ status: 200, description: 'Status retrieved successfully.' })
+  @ApiQuery({
+    name: 'type',
+    required: false,
+    enum: ['initial', 'final'],
+    description:
+      'Filtro opcional: "initial" para tests de inicio, "final" para tests de cierre',
+  })
   @Get('status/:userId')
   @ApiParam({
     name: 'userId',
     description: 'ID del usuario (documentNumber)',
     example: '6803296',
   })
-  async getStatusByUserId(@Param('userId') userId: string) {
-    return this.preTestService.getStatusByUserId(userId);
+  async getStatusByUserId(
+    @Param('userId') userId: string,
+    @Query('type') type?: 'initial' | 'final',
+  ) {
+    return this.preTestService.getStatusByUserId(userId, type);
   }
 }

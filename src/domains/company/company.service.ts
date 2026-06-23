@@ -19,7 +19,7 @@ export class CompanyService {
   constructor(
     @InjectModel(Company.name) private companyModel: Model<Company>,
     @InjectModel(User.name) private userModel: Model<User>,
-  ) { }
+  ) {}
 
   /**
    * Create a new company
@@ -73,29 +73,45 @@ export class CompanyService {
    */
   async findById(id: string) {
     try {
-      const company = await this.companyModel
-        .findById(id)
-        .populate({
-          path: 'managerData.documentType',
-          model: 'DocumentType',
-        })
-        .populate({
-          path: 'userAdmin',
-          model: 'User',
-        });
+      const company = await this.companyModel.findById(id).lean();
 
       if (!company) {
         this.logger.warn(`Company with ID ${id} not found`);
         throw new NotFoundException('Company not found');
       }
 
+      // Intentar populate de forma segura, manejando posibles CastError
+      try {
+        await this.companyModel.populate(company, {
+          path: 'managerData.documentType',
+          model: 'DocumentType',
+        });
+      } catch (popError: any) {
+        this.logger.warn(
+          `Could not populate managerData.documentType: ${popError.message}`,
+        );
+      }
+
+      try {
+        await this.companyModel.populate(company, {
+          path: 'userAdmin',
+          model: 'User',
+        });
+      } catch (popError: any) {
+        this.logger.warn(`Could not populate userAdmin: ${popError.message}`);
+      }
+
       return { message: 'Company found successfully', company };
-    } catch (error) {
+    } catch (error: any) {
       if (error instanceof NotFoundException) {
         throw error;
       }
-      this.logger.error(`Error querying company with ID ${id}`, error.stack);
-      throw new InternalServerErrorException('Error when querying the company');
+      this.logger.error(
+        `Error querying company with ID ${id}: ${error?.message || error}`,
+      );
+      throw new InternalServerErrorException(
+        `Error when querying the company: ${error?.message || 'Unknown error'}`,
+      );
     }
   }
 
@@ -236,7 +252,9 @@ export class CompanyService {
           seriesCurrentBillingRange,
         },
       };
-      company.userAdmin = this.userModel.findById(userAdmin) as any;
+      if (userAdmin) {
+        company.userAdmin = userAdmin as any;
+      }
       company.managerData = managerData;
       company.editedAt = new Date();
       company.editedBy = editedBy;
@@ -253,7 +271,12 @@ export class CompanyService {
       if (error instanceof NotFoundException) {
         throw error;
       }
-      this.logger.error('Error updating company', error.stack);
+      this.logger.error(`Error updating company: ${error?.message || error}`);
+      if (error?.errors) {
+        for (const [key, val] of Object.entries(error.errors)) {
+          this.logger.error(`  ${key}: ${(val as any)?.message}`);
+        }
+      }
       throw new InternalServerErrorException('Error updating company');
     }
   }

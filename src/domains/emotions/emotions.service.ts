@@ -12,7 +12,8 @@ export class EmotionsService {
   constructor(
     @InjectModel(Emotion.name) private emotionModel: Model<Emotion>,
     @InjectModel(Activity.name) private activityModel: Model<Activity>,
-    @InjectModel(UserResponse.name) private userResponseModel: Model<UserResponse>,
+    @InjectModel(UserResponse.name)
+    private userResponseModel: Model<UserResponse>,
     private readonly logger: AppLoggerService,
   ) {
     this.logger.log('EmotionsService initialized');
@@ -138,7 +139,11 @@ export class EmotionsService {
   ): Promise<{ name: string; value: number; icono: string }[]> {
     this.logger.log('Fetching emotion distribution...');
 
-    const pipeline: any[] = this.buildBasePipeline(startDate, endDate, courseId);
+    const pipeline: any[] = this.buildBasePipeline(
+      startDate,
+      endDate,
+      courseId,
+    );
 
     pipeline.push(
       {
@@ -267,7 +272,9 @@ export class EmotionsService {
     const result = await this.userResponseModel.aggregate(pipeline);
 
     // Calcular rango de días para rellenar
-    const diffDays = Math.round((until.getTime() - since.getTime()) / (1000 * 60 * 60 * 24));
+    const diffDays = Math.round(
+      (until.getTime() - since.getTime()) / (1000 * 60 * 60 * 24),
+    );
     const totalDays = Math.max(diffDays, days);
 
     // Rellenar días sin datos con 0
@@ -281,5 +288,24 @@ export class EmotionsService {
     }
 
     return fullRange;
+  }
+
+  async search(searchTerm: string): Promise<Partial<Emotion>[]> {
+    if (!searchTerm || searchTerm === 'all') {
+      return this.emotionModel.find().limit(20).sort({ createdAt: -1 }).exec();
+    }
+    const regex = new RegExp(searchTerm, 'i');
+    return this.emotionModel
+      .find({
+        $or: [
+          { name: { $regex: regex } },
+          { orientationNote: { $regex: regex } },
+          { description: { $regex: regex } },
+          { category: { $regex: regex } },
+        ],
+      })
+      .limit(20)
+      .sort({ createdAt: -1 })
+      .exec();
   }
 }

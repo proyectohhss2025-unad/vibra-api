@@ -148,6 +148,18 @@ export class RolesController {
     return this.rolesService.findAll(paginationDto);
   }
 
+  @BypassPermission()
+  @Get('search')
+  @ApiOperation({ summary: 'Buscar por término' })
+  @ApiQuery({ name: 'searchTerm', required: true })
+  @ApiOkResponse({ description: 'Resultados de búsqueda.' })
+  async search(
+    @Query('searchTerm') searchTerm: string,
+  ): Promise<{ data: any[] }> {
+    const data = await this.rolesService.search(searchTerm);
+    return { data };
+  }
+
   /**
    * Obtiene un rol por su ID
    */
@@ -155,7 +167,11 @@ export class RolesController {
   @ApiOperation({ summary: 'Obtener un rol por su ID' })
   @ApiResponse({ status: 200, description: 'Rol encontrado' })
   @ApiResponse({ status: 404, description: 'Rol no encontrado' })
-  @ApiParam({ name: 'id', description: 'ID del rol.', example: '66c9cce47e6a95e98116c0ab' })
+  @ApiParam({
+    name: 'id',
+    description: 'ID del rol.',
+    example: '66c9cce47e6a95e98116c0ab',
+  })
   @ApiOkResponse({ type: RoleDto })
   async findById(@Param('id') id: string) {
     return this.rolesService.findById(id);
@@ -168,7 +184,11 @@ export class RolesController {
   @ApiOperation({ summary: 'Obtener un rol por su nombre' })
   @ApiResponse({ status: 200, description: 'Rol encontrado' })
   @ApiResponse({ status: 404, description: 'Rol no encontrado' })
-  @ApiParam({ name: 'name', description: 'Nombre del rol.', example: 'Administrador' })
+  @ApiParam({
+    name: 'name',
+    description: 'Nombre del rol.',
+    example: 'Administrador',
+  })
   @ApiOkResponse({ type: RoleDto })
   async findByName(@Param('name') name: string) {
     return this.rolesService.findByName(name);
@@ -181,7 +201,11 @@ export class RolesController {
   @ApiOperation({ summary: 'Eliminar un rol' })
   @ApiResponse({ status: 200, description: 'Rol eliminado exitosamente' })
   @ApiResponse({ status: 404, description: 'Rol no encontrado' })
-  @ApiParam({ name: 'id', description: 'ID del rol.', example: '66c9cce47e6a95e98116c0ab' })
+  @ApiParam({
+    name: 'id',
+    description: 'ID del rol.',
+    example: '66c9cce47e6a95e98116c0ab',
+  })
   @ApiOkResponse({ type: RoleDto })
   async remove(@Param('id') id: string) {
     return this.rolesService.remove(id);

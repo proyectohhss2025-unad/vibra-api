@@ -1,6 +1,7 @@
 export enum Gender {
-  MALE = 'Male',
-  FEMALE = 'Female',
+  MALE = 'MALE',
+  FEMALE = 'FEMALE',
+  OTHER = 'OTHER',
 }
 
 export enum Currency {

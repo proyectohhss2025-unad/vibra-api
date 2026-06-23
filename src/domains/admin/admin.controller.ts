@@ -20,17 +20,19 @@ export class AdminController {
    * @returns Ideas file status
    */
   @Get('ideas-status')
-  @ApiOperation({ summary: 'Obtener estado del archivo de ideas del backlog' })
+  @ApiOperation({
+    summary: 'Obtener estado del backlog de ideas desde MongoDB',
+  })
   @ApiResponse({
     status: 200,
-    description: 'Estado del archivo ideas.json',
+    description: 'Estado del backlog de ideas',
     schema: {
       type: 'object',
       properties: {
-        ideasPath: { type: 'string' },
-        fileExists: { type: 'boolean' },
         totalIdeas: { type: 'integer' },
-        lastModified: { type: 'string' },
+        enDesarrollo: { type: 'integer' },
+        pendientes: { type: 'integer' },
+        completadas: { type: 'integer' },
       },
     },
   })
@@ -39,7 +41,7 @@ export class AdminController {
       return await this.adminService.getIdeasStatus();
     } catch (error) {
       throw new HttpException(
-        { error: 'Error al leer el estado de ideas.json' },
+        { error: 'Error al leer el estado de las ideas' },
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
@@ -51,7 +53,9 @@ export class AdminController {
    * @returns List of unique tags
    */
   @Get('ideas-tags')
-  @ApiOperation({ summary: 'Obtener tags únicos del backlog de ideas (autocomplete)' })
+  @ApiOperation({
+    summary: 'Obtener tags únicos del backlog de ideas (autocomplete)',
+  })
   @ApiResponse({
     status: 200,
     description: 'Lista de tags únicos',
@@ -67,7 +71,7 @@ export class AdminController {
       return await this.adminService.getAvailableTags();
     } catch (error) {
       throw new HttpException(
-        { error: 'Error al obtener tags de ideas.json' },
+        { error: 'Error al obtener tags de las ideas' },
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
@@ -80,16 +84,19 @@ export class AdminController {
    * @returns Success message
    */
   @ApiOperation({ summary: 'Generar copias de seguridad de la base de datos' })
-  @ApiBody({ 
+  @ApiBody({
     description: 'Objeto de solicitud que contiene información del usuario',
     schema: {
       type: 'object',
       properties: {
-        user_: { type: 'string', description: 'ID del usuario' }
-      }
-    }
+        user_: { type: 'string', description: 'ID del usuario' },
+      },
+    },
   })
-  @ApiResponse({ status: 200, description: 'Copia de seguridad generada exitosamente' })
+  @ApiResponse({
+    status: 200,
+    description: 'Copia de seguridad generada exitosamente',
+  })
   @ApiResponse({ status: 500, description: 'Error interno del servidor' })
   @Post('backups/generate')
   async generateBackups(@Body() req: any) {
@@ -110,7 +117,10 @@ export class AdminController {
    * @returns Success message
    */
   @ApiOperation({ summary: 'Verificar facturas y generar notificaciones' })
-  @ApiResponse({ status: 200, description: 'Facturas verificadas y notificaciones generadas exitosamente' })
+  @ApiResponse({
+    status: 200,
+    description: 'Facturas verificadas y notificaciones generadas exitosamente',
+  })
   @ApiResponse({ status: 500, description: 'Error interno del servidor' })
   @Post('invoices/check')
   async checkInvoices() {
@@ -130,8 +140,13 @@ export class AdminController {
    *
    * @returns Success message
    */
-  @ApiOperation({ summary: 'Eliminar todos los documentos para propósitos de prueba' })
-  @ApiResponse({ status: 200, description: 'Documentos eliminados exitosamente' })
+  @ApiOperation({
+    summary: 'Eliminar todos los documentos para propósitos de prueba',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Documentos eliminados exitosamente',
+  })
   @ApiResponse({ status: 500, description: 'Error interno del servidor' })
   @Post('test/delete-all')
   async deleteAllDocumentsByTest() {

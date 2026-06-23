@@ -8,9 +8,7 @@ import { AuthMiddleware } from '../../infrastructure/auth/auth.middleware';
 
 @Module({
   imports: [
-    MongooseModule.forFeature([
-      { name: Contact.name, schema: ContactSchema },
-    ]),
+    MongooseModule.forFeature([{ name: Contact.name, schema: ContactSchema }]),
     LoggerModule,
   ],
   controllers: [ContactsController],

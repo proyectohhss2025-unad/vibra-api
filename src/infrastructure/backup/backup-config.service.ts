@@ -17,7 +17,10 @@ export class BackupConfigService {
 
   get config(): BackupConfig {
     return {
-      mongoHost: this.configService.get<string>('BACKUP_MONGO_HOST', 'localhost'),
+      mongoHost: this.configService.get<string>(
+        'BACKUP_MONGO_HOST',
+        'localhost',
+      ),
       mongoPort: this.configService.get<string>('BACKUP_MONGO_PORT', '27017'),
       database: this.configService.get<string>('BACKUP_DATABASE', 'vibra_db'),
       backupDir: this.configService.get<string>('BACKUP_DIR', './backups'),

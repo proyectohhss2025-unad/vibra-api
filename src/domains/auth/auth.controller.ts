@@ -11,7 +11,7 @@ import {
   ApiOkResponse,
   ApiOperation,
   ApiResponse,
-  ApiTags
+  ApiTags,
 } from '@nestjs/swagger';
 import { Public } from 'src/infrastructure/auth/public.decorator';
 import { UsersService } from '../users/users.service';
@@ -45,7 +45,7 @@ export class AuthController {
     try {
       const user = await this.usersService.create({
         ...registerDto,
-        avatar: registerDto.avatar || 'default-avatar.png',
+        avatar: registerDto.avatar || 'default-avatar.svg',
       });
       return { message: 'User registered successfully' };
     } catch (error) {
@@ -65,7 +65,10 @@ export class AuthController {
 
   @Get('profile')
   @ApiOperation({ summary: 'Obtener perfil de usuario autenticado' })
-  @ApiOkResponse({ description: 'Perfil del usuario.', schema: { type: 'object' } })
+  @ApiOkResponse({
+    description: 'Perfil del usuario.',
+    schema: { type: 'object' },
+  })
   async getProfile(@Request() req: any) {
     return req.user;
   }
@@ -107,22 +110,33 @@ export class AuthController {
   @Public()
   @Post('refresh-token')
   @ApiOperation({ summary: 'Refrescar token' })
-  @ApiOkResponse({ description: 'Token refrescado.', schema: { type: 'object' } })
+  @ApiOkResponse({
+    description: 'Token refrescado.',
+    schema: { type: 'object' },
+  })
   async refreshToken(@Request() req: any) {
     return this.authService.refreshToken(req.user);
   }
 
   @Post('verify-token')
   @ApiOperation({ summary: 'Verificar token' })
-  @ApiBody({ schema: { type: 'object', properties: { token: { type: 'string' } }, required: ['token'] } })
-  @ApiOkResponse({ description: 'Resultado de verificación.', schema: { type: 'object' } })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: { token: { type: 'string' } },
+      required: ['token'],
+    },
+  })
+  @ApiOkResponse({
+    description: 'Resultado de verificación.',
+    schema: { type: 'object' },
+  })
   async verifyToken(@Body() body: { token: string }) {
     return this.authService.verifyToken(body.token);
   }
 
   @Public()
   // Endpoint de validación por email removido: ahora el login solo usa username + password
-
   @Public()
   @Post('logout')
   @ApiOperation({ summary: 'Cerrar sesión' })

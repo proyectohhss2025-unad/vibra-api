@@ -1,4 +1,10 @@
-import { IsArray, IsIn, IsOptional, IsString, MinLength } from 'class-validator';
+import {
+  IsArray,
+  IsIn,
+  IsOptional,
+  IsString,
+  MinLength,
+} from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export class ConvertToIdeaDto {
@@ -12,8 +18,10 @@ export class ConvertToIdeaDto {
   title?: string;
 
   @ApiPropertyOptional({
-    description: 'Descripción detallada de la idea (default: feedback.description)',
-    example: 'Los usuarios reportan que el dashboard en mobile es lento al cargar las gráficas.',
+    description:
+      'Descripción detallada de la idea (default: feedback.description)',
+    example:
+      'Los usuarios reportan que el dashboard en mobile es lento al cargar las gráficas.',
   })
   @IsOptional()
   @IsString()

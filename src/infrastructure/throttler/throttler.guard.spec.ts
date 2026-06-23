@@ -5,6 +5,8 @@ import { ThrottlerGuard } from './throttler.guard';
 import { ThrottlerException, ThrottlerModuleOptions, ThrottlerStorage } from '@nestjs/throttler';
 import { AppLoggerService } from '../../helpers/logger/logger.service';
 import { THROTTLER_OPTIONS } from '@nestjs/throttler/dist/throttler.constants';
+import { SecurityService } from '../security/security.service';
+import { BlockedIpCacheService } from '../security/cache/blocked-ip-cache.service';
 
 describe('ThrottlerGuard', () => {
     let guard: ThrottlerGuard | any;
@@ -81,6 +83,21 @@ describe('ThrottlerGuard', () => {
                         warn: jest.fn(),
                         log: jest.fn(),
                         error: jest.fn(),
+                    },
+                },
+                {
+                    provide: SecurityService,
+                    useValue: {
+                        isBlocked: jest.fn(),
+                        blockIP: jest.fn(),
+                    },
+                },
+                {
+                    provide: BlockedIpCacheService,
+                    useValue: {
+                        get: jest.fn().mockReturnValue(null),
+                        set: jest.fn(),
+                        invalidate: jest.fn(),
                     },
                 },
             ],

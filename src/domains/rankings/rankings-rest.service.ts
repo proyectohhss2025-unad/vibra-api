@@ -10,7 +10,10 @@ import { RankingResponseDto, RankingItemDto } from './dto/ranking-response.dto';
 export class RankingsRestService {
   private readonly logger = new Logger(RankingsRestService.name);
   private readonly CACHE_TTL = 30_000; // 30 segundos
-  private cache = new Map<string, { data: RankingResponseDto; timestamp: number }>();
+  private cache = new Map<
+    string,
+    { data: RankingResponseDto; timestamp: number }
+  >();
 
   constructor(
     @InjectModel(Participant.name)
@@ -19,7 +22,12 @@ export class RankingsRestService {
     private userModel: Model<User>,
   ) {}
 
-  private getCacheKey(scope: string, scopeId: string | null, limit: number, offset: number): string {
+  private getCacheKey(
+    scope: string,
+    scopeId: string | null,
+    limit: number,
+    offset: number,
+  ): string {
     return `${scope}:${scopeId || 'null'}:${limit}:${offset}`;
   }
 
@@ -44,7 +52,10 @@ export class RankingsRestService {
     }
   }
 
-  private buildFilter(extraFilter: Record<string, any> = {}, search?: string): any {
+  private buildFilter(
+    extraFilter: Record<string, any> = {},
+    search?: string,
+  ): any {
     const filter: any = { isActive: true, ...extraFilter };
     if (search) {
       filter.nickname = { $regex: search, $options: 'i' };
@@ -68,24 +79,27 @@ export class RankingsRestService {
       .map((id) => (typeof id === 'object' ? id.toString() : id));
 
     // Obtener nombres de usuarios (para institución)
-    const users = userIds.length > 0
-      ? await this.userModel
-          .find({ _id: { $in: userIds.map((id) => new Types.ObjectId(id)) } })
-          .populate({ path: 'company', select: 'name' })
-          .select('company')
-          .lean()
-      : [];
+    const users =
+      userIds.length > 0
+        ? await this.userModel
+            .find({ _id: { $in: userIds.map((id) => new Types.ObjectId(id)) } })
+            .populate({ path: 'company', select: 'name' })
+            .select('company')
+            .lean()
+        : [];
 
     const userMap = new Map(users.map((u: any) => [u._id.toString(), u]));
 
     // Obtener nombres de cursos
     const CourseModel = this.participantModel.db.model('Course');
-    const courses = courseIds.length > 0
-      ? await CourseModel
-          .find({ _id: { $in: courseIds.map((id) => new Types.ObjectId(id)) } })
-          .select('name')
-          .lean()
-      : [];
+    const courses =
+      courseIds.length > 0
+        ? await CourseModel.find({
+            _id: { $in: courseIds.map((id) => new Types.ObjectId(id)) },
+          })
+            .select('name')
+            .lean()
+        : [];
 
     const courseMap = new Map(courses.map((c: any) => [c._id.toString(), c]));
 
@@ -135,7 +149,12 @@ export class RankingsRestService {
 
     const data = await this.enrichParticipants(participants, offset);
 
-    const response: RankingResponseDto = { data, total, scope: 'general', scopeId: null };
+    const response: RankingResponseDto = {
+      data,
+      total,
+      scope: 'general',
+      scopeId: null,
+    };
     this.setCache(cacheKey, response);
     return response;
   }
@@ -143,7 +162,10 @@ export class RankingsRestService {
   /**
    * Ranking por curso: participantes de un curso específico.
    */
-  async getByCourse(courseId: string, query: RankingQueryDto): Promise<RankingResponseDto> {
+  async getByCourse(
+    courseId: string,
+    query: RankingQueryDto,
+  ): Promise<RankingResponseDto> {
     const limit = query.limit || 20;
     const offset = query.offset || 0;
     const cacheKey = this.getCacheKey('course', courseId, limit, offset);
@@ -172,7 +194,12 @@ export class RankingsRestService {
 
     const data = await this.enrichParticipants(participants, offset);
 
-    const response: RankingResponseDto = { data, total, scope: 'course', scopeId: courseId };
+    const response: RankingResponseDto = {
+      data,
+      total,
+      scope: 'course',
+      scopeId: courseId,
+    };
     this.setCache(cacheKey, response);
     return response;
   }
@@ -180,16 +207,29 @@ export class RankingsRestService {
   /**
    * Ranking por institución: participantes de una institución (company).
    */
-  async getByInstitution(institutionId: string, query: RankingQueryDto): Promise<RankingResponseDto> {
+  async getByInstitution(
+    institutionId: string,
+    query: RankingQueryDto,
+  ): Promise<RankingResponseDto> {
     const limit = query.limit || 20;
     const offset = query.offset || 0;
-    const cacheKey = this.getCacheKey('institution', institutionId, limit, offset);
+    const cacheKey = this.getCacheKey(
+      'institution',
+      institutionId,
+      limit,
+      offset,
+    );
 
     const cached = this.getFromCache(cacheKey);
     if (cached) return cached;
 
     if (!Types.ObjectId.isValid(institutionId)) {
-      return { data: [], total: 0, scope: 'institution', scopeId: institutionId };
+      return {
+        data: [],
+        total: 0,
+        scope: 'institution',
+        scopeId: institutionId,
+      };
     }
 
     // Buscar users que pertenezcan a esta institución
@@ -201,13 +241,15 @@ export class RankingsRestService {
     const userIds = institutionUsers.map((u) => u._id);
 
     if (userIds.length === 0) {
-      return { data: [], total: 0, scope: 'institution', scopeId: institutionId };
+      return {
+        data: [],
+        total: 0,
+        scope: 'institution',
+        scopeId: institutionId,
+      };
     }
 
-    const filter = this.buildFilter(
-      { userId: { $in: userIds } },
-      query.search,
-    );
+    const filter = this.buildFilter({ userId: { $in: userIds } }, query.search);
 
     const [participants, total] = await Promise.all([
       this.participantModel
@@ -221,7 +263,12 @@ export class RankingsRestService {
 
     const data = await this.enrichParticipants(participants, offset);
 
-    const response: RankingResponseDto = { data, total, scope: 'institution', scopeId: institutionId };
+    const response: RankingResponseDto = {
+      data,
+      total,
+      scope: 'institution',
+      scopeId: institutionId,
+    };
     this.setCache(cacheKey, response);
     return response;
   }

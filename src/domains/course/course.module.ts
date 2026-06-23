@@ -2,8 +2,14 @@ import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { Company, CompanySchema } from '../company/schemas/company.schema';
 import { User, UserSchema } from '../users/schemas/user.schema';
-import { Participant, ParticipantSchema } from '../participant/schemas/participant.schema';
-import { UserResponse, UserResponseSchema } from '../userResponses/schemas/userResponse.schema';
+import {
+  Participant,
+  ParticipantSchema,
+} from '../participant/schemas/participant.schema';
+import {
+  UserResponse,
+  UserResponseSchema,
+} from '../userResponses/schemas/userResponse.schema';
 import { CourseController } from './course.controller';
 import { CourseService } from './course.service';
 import { Course, CourseSchema } from './schemas/course.schema';

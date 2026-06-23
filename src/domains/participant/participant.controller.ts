@@ -27,7 +27,10 @@ import {
 import { BypassPermission } from 'src/infrastructure/auth/bypass-permission.decorator';
 import { RequirePermission } from 'src/infrastructure/auth/require-permission.decorator';
 import { CreateParticipantDto } from './dto/create-participant.dto';
-import { UpdateParticipantDto, UpdatePointsDto } from './dto/update-participant.dto';
+import {
+  UpdateParticipantDto,
+  UpdatePointsDto,
+} from './dto/update-participant.dto';
 import { ParticipantService } from './participant.service';
 
 // ─── DTOs para documentación Swagger ───
@@ -101,13 +104,16 @@ class ParticipantsListDto {
 @ApiTags('Participants')
 @Controller('api/participants')
 export class ParticipantController {
-  constructor(private readonly participantService: ParticipantService) { }
+  constructor(private readonly participantService: ParticipantService) {}
 
   // ─── Crear participante ───
   @Post()
   @ApiOperation({ summary: 'Crear participante (desde registro de User)' })
   @ApiBody({ type: CreateParticipantDto })
-  @ApiCreatedResponse({ description: 'Participante creado.', type: ParticipantDto })
+  @ApiCreatedResponse({
+    description: 'Participante creado.',
+    type: ParticipantDto,
+  })
   create(@Body() createParticipantDto: CreateParticipantDto) {
     return this.participantService.create(createParticipantDto);
   }
@@ -116,17 +122,26 @@ export class ParticipantController {
   @Get('by-user/:userId')
   @ApiOperation({ summary: 'Obtener participante por userId' })
   @ApiParam({ name: 'userId', description: 'ID del usuario (User)' })
-  @ApiOkResponse({ description: 'Participante encontrado.', type: ParticipantDto })
+  @ApiOkResponse({
+    description: 'Participante encontrado.',
+    type: ParticipantDto,
+  })
   findByUserId(@Param('userId') userId: string) {
     return this.participantService.findByUserId(userId);
   }
 
   // ─── Actualizar puntos (actividad completada) ───
   @Patch(':id/points')
-  @ApiOperation({ summary: 'Incrementar puntos y actualizar streak/level al completar actividad' })
+  @ApiOperation({
+    summary:
+      'Incrementar puntos y actualizar streak/level al completar actividad',
+  })
   @ApiParam({ name: 'id', description: 'ID del participante' })
   @ApiBody({ type: UpdatePointsDto })
-  @ApiOkResponse({ description: 'Puntos actualizados.', type: UpdatePointsResponseDto })
+  @ApiOkResponse({
+    description: 'Puntos actualizados.',
+    type: UpdatePointsResponseDto,
+  })
   updatePoints(
     @Param('id') id: string,
     @Body() updatePointsDto: UpdatePointsDto,
@@ -136,14 +151,13 @@ export class ParticipantController {
 
   // ─── Historial de actividad por día ───
   @Get(':id/activity-history')
-  @ApiOperation({ summary: 'Obtener historial de actividades completadas por día' })
+  @ApiOperation({
+    summary: 'Obtener historial de actividades completadas por día',
+  })
   @ApiParam({ name: 'id', description: 'ID del participante' })
   @ApiQuery({ name: 'days', required: false, example: 30 })
   @ApiOkResponse({ description: 'Historial de actividades por día.' })
-  getActivityHistory(
-    @Param('id') id: string,
-    @Query('days') days?: number,
-  ) {
+  getActivityHistory(@Param('id') id: string, @Query('days') days?: number) {
     return this.participantService.getActivityHistory(id, days ?? 30);
   }
 
@@ -184,7 +198,10 @@ export class ParticipantController {
   @ApiOperation({ summary: 'Listar participantes' })
   @ApiQuery({ name: 'page', required: false, example: 1 })
   @ApiQuery({ name: 'rows', required: false, example: 10 })
-  @ApiOkResponse({ description: 'Listado de participantes.', type: ParticipantsListDto })
+  @ApiOkResponse({
+    description: 'Listado de participantes.',
+    type: ParticipantsListDto,
+  })
   findAll(@Query() query: any) {
     return this.participantService.findAll(query);
   }
@@ -193,7 +210,10 @@ export class ParticipantController {
   @BypassPermission()
   @Get('count-all-participants')
   @ApiOperation({ summary: 'Obtener el número total de participantes' })
-  @ApiResponse({ status: 200, description: 'Número total de participantes obtenido exitosamente' })
+  @ApiResponse({
+    status: 200,
+    description: 'Número total de participantes obtenido exitosamente',
+  })
   findCountAll(@Query() query: any) {
     return this.participantService.getCountAll(query);
   }
@@ -203,7 +223,10 @@ export class ParticipantController {
   @Get('search')
   @ApiOperation({ summary: 'Buscar participantes' })
   @ApiQuery({ name: 'searchTerm', required: true, example: 'demo' })
-  @ApiOkResponse({ description: 'Resultados de búsqueda.', schema: { type: 'array', items: { type: 'object' } } })
+  @ApiOkResponse({
+    description: 'Resultados de búsqueda.',
+    schema: { type: 'array', items: { type: 'object' } },
+  })
   search(@Query('searchTerm') searchTerm: string) {
     return this.participantService.search(searchTerm);
   }
@@ -213,7 +236,10 @@ export class ParticipantController {
   @Get(':id')
   @ApiOperation({ summary: 'Obtener participante por _id' })
   @ApiParam({ name: 'id', description: 'ID del participante.' })
-  @ApiOkResponse({ description: 'Participante encontrado.', type: ParticipantDto })
+  @ApiOkResponse({
+    description: 'Participante encontrado.',
+    type: ParticipantDto,
+  })
   findOne(@Param('id') id: string) {
     return this.participantService.findOne(id);
   }
@@ -223,7 +249,10 @@ export class ParticipantController {
   @Post('update')
   @ApiOperation({ summary: 'Actualizar participante' })
   @ApiBody({ type: UpdateParticipantDto })
-  @ApiOkResponse({ description: 'Participante actualizado.', type: ParticipantDto })
+  @ApiOkResponse({
+    description: 'Participante actualizado.',
+    type: ParticipantDto,
+  })
   update(@Body() updateParticipantDto: UpdateParticipantDto) {
     return this.participantService.update(updateParticipantDto);
   }
@@ -235,11 +264,16 @@ export class ParticipantController {
   @ApiBody({
     schema: {
       type: 'object',
-      properties: { _id: { type: 'string', example: '66c9cce47e6a95e98116c0ab' } },
+      properties: {
+        _id: { type: 'string', example: '66c9cce47e6a95e98116c0ab' },
+      },
       required: ['_id'],
     },
   })
-  @ApiOkResponse({ description: 'Participante eliminado.', type: ParticipantDto })
+  @ApiOkResponse({
+    description: 'Participante eliminado.',
+    type: ParticipantDto,
+  })
   remove(@Body('_id') id: string) {
     return this.participantService.remove(id);
   }
@@ -251,7 +285,10 @@ export class ParticipantController {
   @ApiQuery({ name: 'startDate', required: false, example: '2026-01-01' })
   @ApiQuery({ name: 'endDate', required: false, example: '2026-01-31' })
   @ApiQuery({ name: 'limit', required: false, example: 50 })
-  @ApiOkResponse({ description: 'Listado filtrado.', type: ParticipantsListDto })
+  @ApiOkResponse({
+    description: 'Listado filtrado.',
+    type: ParticipantsListDto,
+  })
   findAllWithDateFilter(
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
@@ -273,7 +310,10 @@ export class ParticipantController {
   @ApiOperation({ summary: 'Listar participantes (paginado)' })
   @ApiQuery({ name: 'page', required: false, example: 1 })
   @ApiQuery({ name: 'limit', required: false, example: 10 })
-  @ApiOkResponse({ description: 'Listado paginado.', type: ParticipantsListDto })
+  @ApiOkResponse({
+    description: 'Listado paginado.',
+    type: ParticipantsListDto,
+  })
   findAllPaginated(
     @Query('page') page?: number,
     @Query('limit') limit?: number,

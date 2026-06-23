@@ -148,8 +148,16 @@ export class LoggerController {
   @ApiQuery({ name: 'method', required: false, example: 'GET' })
   @ApiQuery({ name: 'url', required: false, example: '/api/users' })
   @ApiQuery({ name: 'status', required: false, example: 200 })
-  @ApiQuery({ name: 'startTime', required: false, example: '2026-01-01T00:00:00.000Z' })
-  @ApiQuery({ name: 'endTime', required: false, example: '2026-01-31T23:59:59.999Z' })
+  @ApiQuery({
+    name: 'startTime',
+    required: false,
+    example: '2026-01-01T00:00:00.000Z',
+  })
+  @ApiQuery({
+    name: 'endTime',
+    required: false,
+    example: '2026-01-31T23:59:59.999Z',
+  })
   @ApiQuery({ name: 'page', required: false, example: 1 })
   @ApiQuery({ name: 'limit', required: false, example: 100 })
   @ApiOkResponse({ description: 'Resumen de logs.', type: LoggerSummaryDto })
@@ -189,7 +197,10 @@ export class LoggerController {
    */
   @Get()
   @ApiOperation({ summary: 'Listar logs' })
-  @ApiOkResponse({ description: 'Listado de logs.', schema: { type: 'array', items: { type: 'object' } } })
+  @ApiOkResponse({
+    description: 'Listado de logs.',
+    schema: { type: 'array', items: { type: 'object' } },
+  })
   async getAllLogs() {
     try {
       return await this.loggerService.getAllLogs();
@@ -213,7 +224,10 @@ export class LoggerController {
     description:
       'Permite filtrar logs usando parámetros de consulta, delegando el filtrado al servicio.',
   })
-  @ApiOkResponse({ description: 'Listado de logs filtrados.', schema: { type: 'array', items: { type: 'object' } } })
+  @ApiOkResponse({
+    description: 'Listado de logs filtrados.',
+    schema: { type: 'array', items: { type: 'object' } },
+  })
   async getAllLogsFiltered(@Req() req: Request) {
     try {
       return await this.loggerService.getAllLogsFiltered(req);

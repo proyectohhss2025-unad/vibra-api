@@ -1,5 +1,14 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsBoolean, IsEnum, IsNotEmpty, IsNumber, IsOptional, IsString, Max, Min } from 'class-validator';
+import {
+  IsBoolean,
+  IsEnum,
+  IsNotEmpty,
+  IsNumber,
+  IsOptional,
+  IsString,
+  Max,
+  Min,
+} from 'class-validator';
 
 export class CreateEmotionDto {
   @ApiProperty({
@@ -71,18 +80,27 @@ export class CreateEmotionDto {
 }
 
 export class UpdateEmotionDto {
-  @ApiPropertyOptional({ description: 'Nombre de la emoción.', example: 'Alegría' })
+  @ApiPropertyOptional({
+    description: 'Nombre de la emoción.',
+    example: 'Alegría',
+  })
   @IsOptional()
   @IsString()
   @IsNotEmpty()
   name?: string;
 
-  @ApiPropertyOptional({ description: 'Nota de orientación.', example: 'Respira y comparte algo positivo.' })
+  @ApiPropertyOptional({
+    description: 'Nota de orientación.',
+    example: 'Respira y comparte algo positivo.',
+  })
   @IsOptional()
   @IsString()
   orientationNote?: string;
 
-  @ApiPropertyOptional({ description: 'Descripción.', example: 'Estado emocional asociado a bienestar.' })
+  @ApiPropertyOptional({
+    description: 'Descripción.',
+    example: 'Estado emocional asociado a bienestar.',
+  })
   @IsOptional()
   @IsString()
   description?: string;
@@ -98,7 +116,11 @@ export class UpdateEmotionDto {
   @IsNumber()
   percentNote?: number;
 
-  @ApiPropertyOptional({ description: 'Categoría.', enum: ['Positiva', 'Negativa', 'Neutra', 'Basica', 'Compleja'], example: 'Positiva' })
+  @ApiPropertyOptional({
+    description: 'Categoría.',
+    enum: ['Positiva', 'Negativa', 'Neutra', 'Basica', 'Compleja'],
+    example: 'Positiva',
+  })
   @IsOptional()
   @IsEnum(['Positiva', 'Negativa', 'Neutra', 'Basica', 'Compleja'])
   category?: string;
@@ -110,7 +132,10 @@ export class UpdateEmotionDto {
   @Max(10)
   intensity?: number;
 
-  @ApiPropertyOptional({ description: 'Estado activo/inactivo.', example: true })
+  @ApiPropertyOptional({
+    description: 'Estado activo/inactivo.',
+    example: true,
+  })
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;

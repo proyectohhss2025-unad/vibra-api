@@ -38,7 +38,12 @@ export class PermissionTemplatesService {
     const skip = (page - 1) * limit;
 
     const [data, total] = await Promise.all([
-      this.permissionTemplateModel.find().skip(skip).limit(limit).populate('permissions').exec(),
+      this.permissionTemplateModel
+        .find()
+        .skip(skip)
+        .limit(limit)
+        .populate('permissions')
+        .exec(),
       this.permissionTemplateModel.countDocuments().exec(),
     ]);
 
@@ -46,7 +51,10 @@ export class PermissionTemplatesService {
   }
 
   async findOne(id: string): Promise<PermissionTemplate> {
-    return this.permissionTemplateModel.findById(id).populate('permissions').exec();
+    return this.permissionTemplateModel
+      .findById(id)
+      .populate('permissions')
+      .exec();
   }
 
   async create(

@@ -63,7 +63,10 @@ export class Idea extends Document {
   @Prop({ enum: ['alta', 'media', 'baja'], default: 'media' })
   prioridad: IdeaPriority;
 
-  @Prop({ enum: ['pendiente', 'en_desarrollo', 'desarrollada'], default: 'pendiente' })
+  @Prop({
+    enum: ['pendiente', 'en_desarrollo', 'desarrollada'],
+    default: 'pendiente',
+  })
   estado: IdeaStatus;
 
   @Prop({ type: Object, default: null })

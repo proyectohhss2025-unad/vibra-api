@@ -15,7 +15,7 @@ import {
   ApiParam,
   ApiProperty,
   ApiQuery,
-  ApiTags
+  ApiTags,
 } from '@nestjs/swagger';
 import { AppLoggerService } from 'src/helpers/logger/logger.service';
 import { CreateTranslateDto } from './dto/create-translate.dto';
@@ -67,7 +67,10 @@ export class TranslateController {
   @ApiQuery({ name: 'page', required: false, example: 1 })
   @ApiQuery({ name: 'limit', required: false, example: 10 })
   @ApiQuery({ name: 'language', required: false, example: 'es' })
-  @ApiOkResponse({ description: 'Listado de traducciones.', schema: { type: 'array', items: { type: 'object' } } })
+  @ApiOkResponse({
+    description: 'Listado de traducciones.',
+    schema: { type: 'array', items: { type: 'object' } },
+  })
   findAll(@Query() filterDto: FilterTranslateDto) {
     return this.translateService.findAll(filterDto);
   }
@@ -82,8 +85,15 @@ export class TranslateController {
 
   @Get('language/:language')
   @ApiOperation({ summary: 'Listar traducciones por idioma' })
-  @ApiParam({ name: 'language', description: 'Código de idioma.', example: 'es' })
-  @ApiOkResponse({ description: 'Traducciones del idioma.', schema: { type: 'array', items: { type: 'object' } } })
+  @ApiParam({
+    name: 'language',
+    description: 'Código de idioma.',
+    example: 'es',
+  })
+  @ApiOkResponse({
+    description: 'Traducciones del idioma.',
+    schema: { type: 'array', items: { type: 'object' } },
+  })
   findByLanguage(@Param('language') language: string) {
     return this.translateService.findByLanguage(language);
   }
@@ -112,8 +122,15 @@ export class TranslateController {
   @Get('translate/:language/:text')
   @ApiOperation({ summary: 'Traducir un texto (por path params)' })
   @ApiParam({ name: 'language', description: 'Idioma destino.', example: 'es' })
-  @ApiParam({ name: 'text', description: 'Texto a traducir.', example: 'Hello' })
-  @ApiOkResponse({ description: 'Texto traducido.', type: TranslateTextResultDto })
+  @ApiParam({
+    name: 'text',
+    description: 'Texto a traducir.',
+    example: 'Hello',
+  })
+  @ApiOkResponse({
+    description: 'Texto traducido.',
+    type: TranslateTextResultDto,
+  })
   translateText(
     @Param('language') language: string,
     @Param('text') text: string,
@@ -124,7 +141,10 @@ export class TranslateController {
   @Get('detect-language')
   @ApiOperation({ summary: 'Detectar idioma de un texto' })
   @ApiQuery({ name: 'text', required: true, example: 'Hola mundo' })
-  @ApiOkResponse({ description: 'Idioma detectado.', type: TranslateDetectLanguageDto })
+  @ApiOkResponse({
+    description: 'Idioma detectado.',
+    type: TranslateDetectLanguageDto,
+  })
   detectLanguage(@Query('text') text: string) {
     return this.translateService.detectLanguage(text);
   }
@@ -134,11 +154,17 @@ export class TranslateController {
   @ApiBody({
     schema: {
       type: 'object',
-      properties: { text: { type: 'string' }, targetLanguage: { type: 'string' } },
+      properties: {
+        text: { type: 'string' },
+        targetLanguage: { type: 'string' },
+      },
       required: ['text', 'targetLanguage'],
     },
   })
-  @ApiOkResponse({ description: 'Texto traducido.', type: TranslateTextResultDto })
+  @ApiOkResponse({
+    description: 'Texto traducido.',
+    type: TranslateTextResultDto,
+  })
   translateSingleText(@Body() body: { text: string; targetLanguage: string }) {
     return this.translateService.translateSingleText(
       body.text,
@@ -149,7 +175,10 @@ export class TranslateController {
   @Post('translate-several')
   @ApiOperation({ summary: 'Traducir varios textos' })
   @ApiBody({ type: TranslateSeveralTextsDto })
-  @ApiOkResponse({ description: 'Textos traducidos.', schema: { type: 'object' } })
+  @ApiOkResponse({
+    description: 'Textos traducidos.',
+    schema: { type: 'object' },
+  })
   translateSeveralTexts(
     @Body() translateSeveralTextsDto: TranslateSeveralTextsDto,
   ) {
@@ -162,7 +191,10 @@ export class TranslateController {
   @Post('seed')
   @ApiOperation({ summary: 'Sembrar traducciones (seed)' })
   @ApiBody({ type: SeedTranslationsDto })
-  @ApiOkResponse({ description: 'Seed completado.', schema: { type: 'object' } })
+  @ApiOkResponse({
+    description: 'Seed completado.',
+    schema: { type: 'object' },
+  })
   seedTranslations(@Body() seedDto: SeedTranslationsDto) {
     this.logger.log(`Seed DTO:... ${seedDto}`);
     return this.translateService.seedTranslations(seedDto.translations);
@@ -170,17 +202,31 @@ export class TranslateController {
 
   @Get('text/:text')
   @ApiOperation({ summary: 'Buscar traducciones por texto' })
-  @ApiParam({ name: 'text', description: 'Texto llave/busqueda.', example: 'HELLO' })
-  @ApiOkResponse({ description: 'Traducciones encontradas.', schema: { type: 'array', items: { type: 'object' } } })
+  @ApiParam({
+    name: 'text',
+    description: 'Texto llave/busqueda.',
+    example: 'HELLO',
+  })
+  @ApiOkResponse({
+    description: 'Traducciones encontradas.',
+    schema: { type: 'array', items: { type: 'object' } },
+  })
   findTranslationsByText(@Param('text') text: string) {
     return this.translateService.findByText(text);
   }
 
   @Get('language/:language/text/:text')
   @ApiOperation({ summary: 'Buscar traducción por idioma y texto' })
-  @ApiParam({ name: 'language', description: 'Código de idioma.', example: 'es' })
+  @ApiParam({
+    name: 'language',
+    description: 'Código de idioma.',
+    example: 'es',
+  })
   @ApiParam({ name: 'text', description: 'Texto llave.', example: 'HELLO' })
-  @ApiOkResponse({ description: 'Traducción encontrada.', schema: { type: 'object' } })
+  @ApiOkResponse({
+    description: 'Traducción encontrada.',
+    schema: { type: 'object' },
+  })
   findTranslation(
     @Param('language') language: string,
     @Param('text') text: string,

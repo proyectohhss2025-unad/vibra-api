@@ -36,7 +36,9 @@ class EmotionDto {
   @ApiProperty({ example: 'Alegría' })
   name: string;
 
-  @ApiPropertyOptional({ example: 'Respira y comparte algo positivo con tu grupo.' })
+  @ApiPropertyOptional({
+    example: 'Respira y comparte algo positivo con tu grupo.',
+  })
   orientationNote?: string;
 
   @ApiPropertyOptional({ example: 'Estado emocional asociado a bienestar.' })
@@ -48,7 +50,10 @@ class EmotionDto {
   @ApiProperty({ example: 25 })
   percentNote: number;
 
-  @ApiPropertyOptional({ enum: ['Positiva', 'Negativa', 'Neutra', 'Basica', 'Compleja'], example: 'Positiva' })
+  @ApiPropertyOptional({
+    enum: ['Positiva', 'Negativa', 'Neutra', 'Basica', 'Compleja'],
+    example: 'Positiva',
+  })
   category?: string;
 
   @ApiPropertyOptional({ example: 7 })
@@ -85,7 +90,10 @@ export class EmotionsController {
   @ApiOperation({ summary: 'Listar emociones (paginado)' })
   @ApiQuery({ name: 'page', required: false, example: 1 })
   @ApiQuery({ name: 'limit', required: false, example: 10 })
-  @ApiOkResponse({ description: 'Catálogo de emociones.', type: EmotionsPaginatedDto })
+  @ApiOkResponse({
+    description: 'Catálogo de emociones.',
+    type: EmotionsPaginatedDto,
+  })
   async findAll(
     @Query('page') page: number = 1,
     @Query('limit') limit: number = 10,
@@ -93,9 +101,25 @@ export class EmotionsController {
     return this.emotionsService.findAll(page, limit);
   }
 
+  @BypassPermission()
+  @Get('search')
+  @ApiOperation({ summary: 'Buscar por término' })
+  @ApiQuery({ name: 'searchTerm', required: true })
+  @ApiOkResponse({ description: 'Resultados de búsqueda.' })
+  async search(
+    @Query('searchTerm') searchTerm: string,
+  ): Promise<{ data: any[] }> {
+    const data = await this.emotionsService.search(searchTerm);
+    return { data };
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Obtener una emoción por ID' })
-  @ApiParam({ name: 'id', description: 'ID de la emoción (MongoDB _id).', example: '66c9cce47e6a95e98116c0ab' })
+  @ApiParam({
+    name: 'id',
+    description: 'ID de la emoción (MongoDB _id).',
+    example: '66c9cce47e6a95e98116c0ab',
+  })
   @ApiOkResponse({ description: 'Emoción encontrada.', type: EmotionDto })
   @ApiNotFoundResponse({ description: 'Emoción no encontrada.' })
   async findById(@Param('id') id: string) {
@@ -104,7 +128,11 @@ export class EmotionsController {
 
   @Put(':id')
   @ApiOperation({ summary: 'Actualizar una emoción' })
-  @ApiParam({ name: 'id', description: 'ID de la emoción.', example: '66c9cce47e6a95e98116c0ab' })
+  @ApiParam({
+    name: 'id',
+    description: 'ID de la emoción.',
+    example: '66c9cce47e6a95e98116c0ab',
+  })
   @ApiBody({ type: UpdateEmotionDto })
   @ApiOkResponse({ description: 'Emoción actualizada.', type: EmotionDto })
   async update(
@@ -116,7 +144,11 @@ export class EmotionsController {
 
   @Delete(':id')
   @ApiOperation({ summary: 'Desactivar una emoción (soft delete)' })
-  @ApiParam({ name: 'id', description: 'ID de la emoción.', example: '66c9cce47e6a95e98116c0ab' })
+  @ApiParam({
+    name: 'id',
+    description: 'ID de la emoción.',
+    example: '66c9cce47e6a95e98116c0ab',
+  })
   @ApiOkResponse({ description: 'Emoción desactivada.', type: EmotionDto })
   async remove(@Param('id') id: string) {
     return this.emotionsService.softDelete(id);
@@ -128,9 +160,21 @@ export class EmotionsController {
     description:
       'Retorna el conteo de respuestas agrupadas por emoción, para gráficas de distribución (donut/pastel).',
   })
-  @ApiQuery({ name: 'startDate', required: false, description: 'Fecha inicial (ISO string)' })
-  @ApiQuery({ name: 'endDate', required: false, description: 'Fecha final (ISO string)' })
-  @ApiQuery({ name: 'courseId', required: false, description: 'Filtrar por curso' })
+  @ApiQuery({
+    name: 'startDate',
+    required: false,
+    description: 'Fecha inicial (ISO string)',
+  })
+  @ApiQuery({
+    name: 'endDate',
+    required: false,
+    description: 'Fecha final (ISO string)',
+  })
+  @ApiQuery({
+    name: 'courseId',
+    required: false,
+    description: 'Filtrar por curso',
+  })
   @ApiOkResponse({
     description: 'Distribución de emociones.',
     schema: {
@@ -159,10 +203,27 @@ export class EmotionsController {
     description:
       'Retorna el conteo de respuestas por día para los últimos N días. Útil para gráficas de líneas.',
   })
-  @ApiQuery({ name: 'days', required: false, example: 30, description: 'Número de días hacia atrás (default: 30)' })
-  @ApiQuery({ name: 'startDate', required: false, description: 'Fecha inicial (ISO string)' })
-  @ApiQuery({ name: 'endDate', required: false, description: 'Fecha final (ISO string)' })
-  @ApiQuery({ name: 'courseId', required: false, description: 'Filtrar por curso' })
+  @ApiQuery({
+    name: 'days',
+    required: false,
+    example: 30,
+    description: 'Número de días hacia atrás (default: 30)',
+  })
+  @ApiQuery({
+    name: 'startDate',
+    required: false,
+    description: 'Fecha inicial (ISO string)',
+  })
+  @ApiQuery({
+    name: 'endDate',
+    required: false,
+    description: 'Fecha final (ISO string)',
+  })
+  @ApiQuery({
+    name: 'courseId',
+    required: false,
+    description: 'Filtrar por curso',
+  })
   @ApiOkResponse({
     description: 'Evolución de emociones por día.',
     schema: {
@@ -182,12 +243,21 @@ export class EmotionsController {
     @Query('endDate') endDate?: string,
     @Query('courseId') courseId?: string,
   ) {
-    return this.emotionsService.getEvolution(days ?? 30, startDate, endDate, courseId);
+    return this.emotionsService.getEvolution(
+      days ?? 30,
+      startDate,
+      endDate,
+      courseId,
+    );
   }
 
   @Get('by-name/:name')
   @ApiOperation({ summary: 'Consultar una emoción por nombre' })
-  @ApiParam({ name: 'name', description: 'Nombre exacto de la emoción.', example: 'Alegría' })
+  @ApiParam({
+    name: 'name',
+    description: 'Nombre exacto de la emoción.',
+    example: 'Alegría',
+  })
   @ApiOkResponse({ description: 'Emoción encontrada.', type: EmotionDto })
   @ApiNotFoundResponse({ description: 'Emoción no encontrada.' })
   async findByName(@Param('name') name: string) {

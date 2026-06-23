@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { UserResponse } from 'src/domains/userResponses/schemas/userResponse.schema';
@@ -9,6 +13,8 @@ import { ActivityResponseDto } from './dto/activity-response.dto';
 import { CreateActivityDto, UpdateActivityDto } from './dto/activity.dto';
 import { Activity } from './schemas/activity.schema';
 import { WeeklySchedule } from './schemas/weekly-schedule.schema';
+import { Participant } from '../participant/schemas/participant.schema';
+import { getColombiaDayRange } from '../../utils/dates';
 
 @Injectable()
 export class ActivitiesService {
@@ -18,9 +24,11 @@ export class ActivitiesService {
     private weeklyScheduleModel: Model<WeeklySchedule>,
     @InjectModel(UserResponse.name)
     private userResponseModel: Model<UserResponse>,
+    @InjectModel(Participant.name)
+    private participantModel: Model<Participant>,
     private readonly logger: AppLoggerService,
     private readonly pushNotificationService: PushNotificationService,
-  ) { }
+  ) {}
 
   async create(createActivityDto: CreateActivityDto): Promise<Activity> {
     const dto: any = createActivityDto;
@@ -36,13 +44,19 @@ export class ActivitiesService {
 
     // Si la actividad tiene fecha y es para hoy, enviar notificación push
     if (savedActivity?.schedule?.date) {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const activityDate = new Date(savedActivity.schedule.date);
-      activityDate.setHours(0, 0, 0, 0);
+      const { todayStr } = getColombiaDayRange();
+      const schedDate = savedActivity.schedule.date;
+      const activityDateStr =
+        schedDate instanceof Date
+          ? schedDate.toLocaleDateString('en-CA', {
+              timeZone: 'America/Bogota',
+            })
+          : String(schedDate).split('T')[0];
 
-      if (activityDate.getTime() === today.getTime()) {
-        this.logger.log('Activity created for today — sending push notifications');
+      if (activityDateStr === todayStr) {
+        this.logger.log(
+          'Activity created for today — sending push notifications',
+        );
         this.pushNotificationService
           .sendPushToAll(
             '🎉 ¡Nueva actividad disponible!',
@@ -53,7 +67,9 @@ export class ActivitiesService {
             },
           )
           .catch((err) =>
-            this.logger.error(`Error sending push notification: ${err.message}`),
+            this.logger.error(
+              `Error sending push notification: ${err.message}`,
+            ),
           );
       }
     }
@@ -90,11 +106,11 @@ export class ActivitiesService {
       this.activityModel.countDocuments(baseQuery).exec(),
       userId
         ? this.userResponseModel
-          .find({ user: new Types.ObjectId(userId) })
-          .populate('activity')
-          .populate('user')
-          .lean()
-          .exec()
+            .find({ user: new Types.ObjectId(userId) })
+            .populate('activity')
+            .populate('user')
+            .lean()
+            .exec()
         : Promise.resolve([]),
     ]);
     //console.log('userResponse: ', userResponse);
@@ -118,9 +134,7 @@ export class ActivitiesService {
       },
     };
 
-    const pipeline: any[] = [
-      { $match: matchStage },
-    ];
+    const pipeline: any[] = [{ $match: matchStage }];
 
     // Si hay courseId, filtrar participantes que pertenecen a ese curso
     if (courseId) {
@@ -133,7 +147,9 @@ export class ActivitiesService {
             as: 'participant',
           },
         },
-        { $unwind: { path: '$participant', preserveNullAndEmptyArrays: false } },
+        {
+          $unwind: { path: '$participant', preserveNullAndEmptyArrays: false },
+        },
         { $match: { 'participant.currentCourse': courseId } },
       );
     }
@@ -167,12 +183,70 @@ export class ActivitiesService {
     return fullYear;
   }
 
+  /**
+   * Obtiene actividades CREADAS agrupadas por mes para un año específico.
+   * A diferencia de getActivitiesByMonth (que cuenta respuestas de usuarios),
+   * esta función cuenta las actividades creadas en el sistema.
+   */
+  async getCreatedActivitiesByMonth(
+    year: number,
+  ): Promise<{ month: number; count: number }[]> {
+    const matchStage: any = {
+      createdAt: {
+        $gte: new Date(`${year}-01-01T00:00:00.000Z`),
+        $lte: new Date(`${year}-12-31T23:59:59.999Z`),
+      },
+    };
+
+    const pipeline = [
+      { $match: matchStage },
+      {
+        $group: {
+          _id: { $month: '$createdAt' },
+          count: { $sum: 1 },
+        },
+      },
+      { $sort: { _id: 1 as const } },
+      {
+        $project: {
+          _id: 0,
+          month: '$_id',
+          count: 1,
+        },
+      },
+    ];
+
+    const result = await this.activityModel.aggregate(pipeline);
+
+    // Rellenar meses sin datos con 0
+    const monthsMap = new Map(result.map((r) => [r.month, r.count]));
+    const fullYear = Array.from({ length: 12 }, (_, i) => ({
+      month: i + 1,
+      count: monthsMap.get(i + 1) ?? 0,
+    }));
+
+    return fullYear;
+  }
+
   async getCountAll(query: any) {
-    return this.activityModel.countDocuments(query).exec();
+    const filter: any = { ...query };
+    // Soporte para filtro por rango de fechas en schedule.date
+    if (query.dateInit || query.dateEnd) {
+      const dateFilter: any = {};
+      if (query.dateInit) dateFilter.$gte = new Date(query.dateInit);
+      if (query.dateEnd) dateFilter.$lte = new Date(query.dateEnd);
+      filter['schedule.date'] = dateFilter;
+    }
+    delete filter.dateInit;
+    delete filter.dateEnd;
+    const count = await this.activityModel.countDocuments(filter).exec();
+    return { count };
   }
 
   async countByType(type: string): Promise<number> {
-    return this.activityModel.countDocuments({ type, isActive: true, deleted: { $ne: true } }).exec();
+    return this.activityModel
+      .countDocuments({ type, isActive: true, deleted: { $ne: true } })
+      .exec();
   }
   async findById(id: string): Promise<Activity> {
     return this.activityModel.findById(id).exec();
@@ -232,21 +306,22 @@ export class ActivitiesService {
   }
 
   async getTodaysActivity(): Promise<any> {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-
-    // Normalizar fechas para comparación
-    const todayStr = today.toISOString().split('T')[0];
-    const tomorrowStr = tomorrow.toISOString().split('T')[0];
+    const { todayStr, tomorrowStr, start, end } = getColombiaDayRange();
 
     // Buscar actividad donde schedule.date esté en el rango del día
+    // Usar $or para soportar datos guardados como UTC (antiguos) y Colombia (nuevos)
     const activities = await this.activityModel.aggregate([
       { $match: { isActive: true } },
       {
         $addFields: {
           scheduleDateStr: {
+            $dateToString: {
+              format: '%Y-%m-%d',
+              date: '$schedule.date',
+              timezone: 'America/Bogota',
+            },
+          },
+          scheduleDateUtc: {
             $dateToString: {
               format: '%Y-%m-%d',
               date: '$schedule.date',
@@ -257,27 +332,24 @@ export class ActivitiesService {
       },
       {
         $match: {
-          scheduleDateStr: {
-            $gte: todayStr,
-            $lt: tomorrowStr,
-          },
+          $or: [
+            { scheduleDateStr: { $gte: todayStr, $lt: tomorrowStr } },
+            { scheduleDateUtc: { $gte: todayStr, $lt: tomorrowStr } },
+          ],
         },
       },
       { $limit: 1 },
     ]);
 
-    let activity = activities.length > 0 ? activities[0] : null;
+    const activity = activities.length > 0 ? activities[0] : null;
 
     // Fallback: buscar por createdAt si no hay con schedule.date
     if (!activity) {
       const fallback = await this.activityModel
         .findOne({
           isActive: true,
-          $or: [
-            { schedule: { $exists: false } },
-            { 'schedule.date': null },
-          ],
-          createdAt: { $gte: today, $lt: tomorrow },
+          $or: [{ schedule: { $exists: false } }, { 'schedule.date': null }],
+          createdAt: { $gte: start, $lt: end },
         })
         .populate('emotion')
         .exec();
@@ -287,7 +359,7 @@ export class ActivitiesService {
         return {
           activity: fallback,
           schedule: {
-            date: today,
+            date: start,
             status: 'active',
           },
         };
@@ -300,11 +372,13 @@ export class ActivitiesService {
         .populate('emotion')
         .exec();
 
-      this.logger.log(`Getting today's activity... ${JSON.stringify(populatedActivity)}`);
+      this.logger.log(
+        `Getting today's activity... ${JSON.stringify(populatedActivity)}`,
+      );
       return {
         activity: populatedActivity,
         schedule: {
-          date: activity.schedule?.date || today,
+          date: activity.schedule?.date || start,
           status: 'active',
         },
       };
@@ -314,10 +388,60 @@ export class ActivitiesService {
     return {
       activity: null,
       schedule: {
-        date: today,
+        date: start,
         status: 'no_activity',
       },
     };
+  }
+
+  /**
+   * Verifica si ya existe una actividad programada para una fecha específica.
+   * @param dateStr - Fecha en formato YYYY-MM-DD (Colombia)
+   * @param excludeId - ID de actividad a excluir (para edición)
+   */
+  async checkDateExists(dateStr: string, excludeId?: string): Promise<boolean> {
+    // Comparar contra America/Bogota y UTC para cubrir datos nuevos y antiguos
+    const tomorrowDate = new Date(dateStr + 'T00:00:00-05:00');
+    tomorrowDate.setDate(tomorrowDate.getDate() + 1);
+    const tomorrowStr = tomorrowDate.toISOString().split('T')[0];
+
+    const result = await this.activityModel
+      .findOne({
+        ...(excludeId ? { _id: { $ne: excludeId } } : {}),
+        $or: [
+          {
+            $expr: {
+              $eq: [
+                {
+                  $dateToString: {
+                    format: '%Y-%m-%d',
+                    date: '$schedule.date',
+                    timezone: 'America/Bogota',
+                  },
+                },
+                dateStr,
+              ],
+            },
+          },
+          {
+            $expr: {
+              $eq: [
+                {
+                  $dateToString: {
+                    format: '%Y-%m-%d',
+                    date: '$schedule.date',
+                    timezone: 'UTC',
+                  },
+                },
+                dateStr,
+              ],
+            },
+          },
+        ],
+      })
+      .exec();
+
+    return !!result;
   }
 
   private shuffleArray(array: any[]): any[] {
@@ -463,21 +587,37 @@ export class ActivitiesService {
       .exec();
 
     if (userResponse) {
-      await this.userResponseModel
-        .findByIdAndUpdate(userResponse._id, {
-          ...responseData,
-          responses: [...userResponse.responses, ...responseData.responses],
-        })
-        .exec();
-      return {
-        activityId,
-        userId,
-        results,
-        totalScore,
-      };
+      throw new BadRequestException(
+        `El usuario ya ha respondido esta actividad anteriormente. No se permiten respuestas duplicadas.`,
+      );
     }
 
     await this.userResponseModel.create(responseData);
+
+    // ─── Crear participante automáticamente si es su primera actividad ───
+    try {
+      const existingParticipant = await this.participantModel
+        .findOne({ userId: new Types.ObjectId(userId) })
+        .exec();
+      if (!existingParticipant) {
+        await this.participantModel.create({
+          userId: new Types.ObjectId(userId),
+          nickname: `user-${userId.slice(-6)}`,
+          points: 0,
+          level: 'bronce',
+          totalActivitiesCompleted: 0,
+          isActive: true,
+        });
+        this.logger.log(
+          `🎉 Nuevo participante creado para usuario ${userId} (primera actividad)`,
+        );
+      }
+    } catch (err) {
+      this.logger.error(
+        `Error creating participant for ${userId}: ${err.message}`,
+      );
+    }
+
     return {
       activityId,
       userId,
@@ -506,7 +646,7 @@ export class ActivitiesService {
       .exec();
 
     // Extraer las actividades de las respuestas
-    let activityIds = userResponses
+    const activityIds = userResponses
       .map((ur) => ur.activity?._id)
       .filter(Boolean);
 
@@ -534,5 +674,19 @@ export class ActivitiesService {
     ]);
 
     return { data, total, page, limit };
+  }
+
+  async search(searchTerm: string): Promise<Partial<Activity>[]> {
+    if (!searchTerm || searchTerm === 'all') {
+      return this.activityModel.find().limit(20).sort({ createdAt: -1 }).exec();
+    }
+    const regex = new RegExp(searchTerm, 'i');
+    return this.activityModel
+      .find({
+        $or: [{ title: { $regex: regex } }, { description: { $regex: regex } }],
+      })
+      .limit(20)
+      .sort({ createdAt: -1 })
+      .exec();
   }
 }

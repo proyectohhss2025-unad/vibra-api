@@ -10,31 +10,54 @@ import {
 } from '@nestjs/common';
 import {
   ApiBody,
+  ApiOkResponse,
   ApiOperation,
   ApiProperty,
+  ApiQuery,
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { BypassPermission } from 'src/infrastructure/auth/bypass-permission.decorator';
 import { PermissionsService } from './permissions.service';
 import { Permission } from './schemas/permission.schema';
 
 @ApiTags('Permissions')
 @Controller('api/permissions')
 export class PermissionsController {
-  constructor(private readonly permissionsService: PermissionsService) { }
+  constructor(private readonly permissionsService: PermissionsService) {}
 
   @Get()
   @ApiOperation({ summary: 'Listar permisos' })
-  @ApiResponse({ status: 200, description: 'Lista de permisos.', type: [Permission] })
+  @ApiResponse({
+    status: 200,
+    description: 'Lista de permisos.',
+    type: [Permission],
+  })
   async findAll(@Query('page') page?: string, @Query('rows') rows?: string) {
     const data = await this.permissionsService.findAll();
     return { items: data, total: data.length };
   }
 
+  @BypassPermission()
+  @Get('search')
+  @ApiOperation({ summary: 'Buscar por término' })
+  @ApiQuery({ name: 'searchTerm', required: true })
+  @ApiOkResponse({ description: 'Resultados de búsqueda.' })
+  async search(
+    @Query('searchTerm') searchTerm: string,
+  ): Promise<{ data: any[] }> {
+    const data = await this.permissionsService.search(searchTerm);
+    return { data };
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Obtener permiso por id' })
   @ApiProperty({ description: 'ID del permiso.' })
-  @ApiResponse({ status: 200, description: 'Permiso encontrado.', type: Permission })
+  @ApiResponse({
+    status: 200,
+    description: 'Permiso encontrado.',
+    type: Permission,
+  })
   findOne(@Param('id') id: string) {
     return this.permissionsService.findOne(id);
   }
@@ -42,7 +65,11 @@ export class PermissionsController {
   @Post()
   @ApiOperation({ summary: 'Crear permiso' })
   @ApiBody({ type: Permission })
-  @ApiResponse({ status: 201, description: 'Permiso creado.', type: Permission })
+  @ApiResponse({
+    status: 201,
+    description: 'Permiso creado.',
+    type: Permission,
+  })
   create(@Body() permission: Partial<Permission>) {
     return this.permissionsService.create(permission);
   }
@@ -51,7 +78,11 @@ export class PermissionsController {
   @ApiOperation({ summary: 'Actualizar permiso' })
   @ApiProperty({ description: 'ID del permiso.' })
   @ApiBody({ type: Permission })
-  @ApiResponse({ status: 200, description: 'Permiso actualizado.', type: Permission })
+  @ApiResponse({
+    status: 200,
+    description: 'Permiso actualizado.',
+    type: Permission,
+  })
   update(@Param('id') id: string, @Body() permission: Partial<Permission>) {
     return this.permissionsService.update(id, permission);
   }
@@ -59,7 +90,11 @@ export class PermissionsController {
   @Delete(':id')
   @ApiOperation({ summary: 'Eliminar permiso' })
   @ApiProperty({ description: 'ID del permiso.' })
-  @ApiResponse({ status: 200, description: 'Permiso eliminado.', type: Permission })
+  @ApiResponse({
+    status: 200,
+    description: 'Permiso eliminado.',
+    type: Permission,
+  })
   remove(@Param('id') id: string) {
     return this.permissionsService.remove(id);
   }

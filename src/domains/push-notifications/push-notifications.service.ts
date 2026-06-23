@@ -22,7 +22,7 @@ export class PushNotificationService {
     @InjectModel(DeviceToken.name)
     private deviceTokenModel: Model<DeviceToken>,
     private readonly logger: AppLoggerService,
-  ) { }
+  ) {}
 
   /**
    * Registra o actualiza un token push de dispositivo
@@ -48,7 +48,9 @@ export class PushNotificationService {
   /**
    * Desactiva un token push (logout)
    */
-  async unregisterToken(token: string): Promise<{ success: boolean; message: string }> {
+  async unregisterToken(
+    token: string,
+  ): Promise<{ success: boolean; message: string }> {
     await this.deviceTokenModel
       .findOneAndUpdate({ token }, { isActive: false })
       .exec();
@@ -117,17 +119,16 @@ export class PushNotificationService {
                 ticket.message?.includes('InvalidCredentials')
               ) {
                 await this.deviceTokenModel
-                  .findOneAndUpdate(
-                    { token: chunk[j].to },
-                    { isActive: false },
-                  )
+                  .findOneAndUpdate({ token: chunk[j].to }, { isActive: false })
                   .exec();
               }
             }
           }
         }
       } catch (error) {
-        this.logger.error(`Error sending push notification chunk: ${error.message}`);
+        this.logger.error(
+          `Error sending push notification chunk: ${error.message}`,
+        );
       }
     }
 

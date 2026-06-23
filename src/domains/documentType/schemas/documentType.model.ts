@@ -35,4 +35,3 @@ export class DocumentType extends Document {
 }
 
 export const DocumentTypeSchema = SchemaFactory.createForClass(DocumentType);
-

@@ -92,10 +92,11 @@ export class FileUploadController {
         fileSize: 5 * 1024 * 1024, // 5 MB
       },
       fileFilter: (req, file, cb) => {
-        const fileExtensionPattern = /\.(mp4|avi|mov|mpeg|mpeg)$/;
+        const fileExtensionPattern =
+          /\.(mp4|avi|mov|mpeg|webm|jpg|jpeg|png|gif|webp)$/i;
         if (!fileExtensionPattern.exec(file.originalname)) {
           return cb(
-            new Error('Se permiten solo archivos de audio y video'),
+            new Error('Se permiten solo archivos de audio, video e imágenes'),
             false,
           );
         }

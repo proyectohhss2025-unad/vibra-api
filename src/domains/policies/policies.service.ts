@@ -59,7 +59,12 @@ export class PoliciesService {
   ): Promise<{ data: Policy[]; total: number; page: number; limit: number }> {
     const skip = (page - 1) * limit;
     const [data, total] = await Promise.all([
-      this.policyModel.find().skip(skip).limit(limit).sort({ createdAt: -1 }).exec(),
+      this.policyModel
+        .find()
+        .skip(skip)
+        .limit(limit)
+        .sort({ createdAt: -1 })
+        .exec(),
       this.policyModel.countDocuments().exec(),
     ]);
     return { data, total, page, limit };
@@ -123,23 +128,41 @@ export class PoliciesService {
     policyIds: string[],
     userAgent?: string,
     ipAddress?: string,
-  ): Promise<UserPolicy[]> {
-    const userPolicies = await Promise.all(
+  ): Promise<any> {
+    // Obtener versiones de cada política
+    const policies = await Promise.all(
       policyIds.map(async (policyId) => {
         const policy = await this.getPolicyById(policyId);
-        return new this.userPolicyModel({
-          userId,
-          policyId,
-          version: policy.version,
-          userPolicyKey: `${userId}-${policyId}-${policy.version}`,
-          isAccepted: true,
-          userAgent,
-          ipAddress,
-        });
+        return { policyId, version: policy.version };
       }),
     );
 
-    return this.userPolicyModel.insertMany(userPolicies);
+    // Usar bulkWrite con upsert para evitar errores de duplicados
+    const operations = policies.map(({ policyId, version }) => ({
+      updateOne: {
+        filter: { userId, policyId },
+        update: {
+          $set: {
+            userId,
+            policyId,
+            version,
+            isAccepted: true,
+            acceptedAt: new Date(),
+            userAgent: userAgent || '',
+            ipAddress: ipAddress || '',
+          },
+          $setOnInsert: {
+            userPolicyKey: `${userId}-${policyId}`,
+          },
+        },
+        upsert: true,
+      },
+    }));
+
+    const result = await this.userPolicyModel.bulkWrite(operations as any, {
+      ordered: false,
+    });
+    return { matched: result.matchedCount, upserted: result.upsertedCount };
   }
 
   /**
@@ -181,6 +204,27 @@ export class PoliciesService {
         isActive: true,
         _id: { $nin: acceptedPolicies },
       })
+      .exec();
+  }
+
+  async search(searchTerm: string): Promise<Partial<Policy>[]> {
+    if (!searchTerm || searchTerm === 'all') {
+      return this.policyModel.find().limit(20).sort({ createdAt: -1 }).exec();
+    }
+    const regex = new RegExp(searchTerm, 'i');
+    return this.policyModel
+      .find({
+        $or: [
+          { title: { $regex: regex } },
+          { name: { $regex: regex } },
+          { description: { $regex: regex } },
+          { category: { $regex: regex } },
+          { content: { $regex: regex } },
+          { type: { $regex: regex } },
+        ],
+      })
+      .limit(20)
+      .sort({ createdAt: -1 })
       .exec();
   }
 }

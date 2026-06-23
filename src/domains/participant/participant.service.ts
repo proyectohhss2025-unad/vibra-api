@@ -1,12 +1,20 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { parse } from 'csv-parse';
 import { readFileSync } from 'fs';
 import { Model, PipelineStage, Types } from 'mongoose';
 import { WeeklySchedule } from '../activities/schemas/weekly-schedule.schema';
 import { CreateParticipantDto } from './dto/create-participant.dto';
-import { UpdateParticipantDto, UpdatePointsDto } from './dto/update-participant.dto';
+import {
+  UpdateParticipantDto,
+  UpdatePointsDto,
+} from './dto/update-participant.dto';
 import { Participant, calculateLevel } from './schemas/participant.schema';
+import { Company } from '../company/schemas/company.schema';
 
 @Injectable()
 export class ParticipantService {
@@ -15,7 +23,9 @@ export class ParticipantService {
     private participantModel: Model<Participant>,
     @InjectModel(WeeklySchedule.name)
     private weeklyScheduleModel: Model<WeeklySchedule>,
-  ) { }
+    @InjectModel(Company.name)
+    private companyModel: Model<Company>,
+  ) {}
 
   // ─── NUEVO: Crear participante desde registro de User ───
   async create(createParticipantDto: CreateParticipantDto) {
@@ -23,7 +33,9 @@ export class ParticipantService {
       userId: createParticipantDto.userId,
     });
     if (existing) {
-      throw new ConflictException('Ya existe un participante para este usuario');
+      throw new ConflictException(
+        'Ya existe un participante para este usuario',
+      );
     }
 
     const participant = new this.participantModel({
@@ -41,7 +53,9 @@ export class ParticipantService {
   async findByUserId(userId: string) {
     const participant = await this.participantModel.findOne({ userId });
     if (!participant) {
-      throw new NotFoundException('Participante no encontrado para este usuario');
+      throw new NotFoundException(
+        'Participante no encontrado para este usuario',
+      );
     }
     return participant;
   }
@@ -60,7 +74,12 @@ export class ParticipantService {
     const pipeline: PipelineStage[] = [
       { $match: { participants: new Types.ObjectId(userId) } },
       { $unwind: '$days' },
-      { $match: { 'days.status': 'completed', 'days.date': { $gte: sinceDate } } },
+      {
+        $match: {
+          'days.status': 'completed',
+          'days.date': { $gte: sinceDate },
+        },
+      },
       {
         $group: {
           _id: {
@@ -97,26 +116,63 @@ export class ParticipantService {
   // ─── Obtener leaderboard del curso ───
   async getLeaderboard(courseId: string, limit: number = 20) {
     const filter: any = { isActive: true };
-    if (courseId && courseId !== 'undefined' && Types.ObjectId.isValid(courseId)) {
+    if (
+      courseId &&
+      courseId !== 'undefined' &&
+      Types.ObjectId.isValid(courseId)
+    ) {
       filter.currentCourse = new Types.ObjectId(courseId);
     }
 
     const participants = await this.participantModel
       .find(filter)
       .select('userId nickname points level avatar currentCourse')
+      .populate('currentCourse', 'name companyId')
       .sort({ points: -1 })
       .limit(limit)
       .lean();
 
     const totalCount = await this.participantModel.countDocuments(filter);
 
-    const leaderboard = participants.map((p, index) => ({
+    // Collect unique companyIds from courses
+    const companyIds = [
+      ...new Set(
+        participants
+          .map((p: any) => p.currentCourse?.companyId)
+          .filter(Boolean),
+      ),
+    ];
+
+    // Look up company names
+    const companies =
+      companyIds.length > 0
+        ? await this.companyModel
+            .find({
+              _id: { $in: companyIds.map((id) => new Types.ObjectId(id)) },
+            })
+            .select('name')
+            .lean()
+        : [];
+    const companyMap = new Map(
+      companies.map((c: any) => [c._id.toString(), (c as any).name]),
+    );
+
+    const leaderboard = participants.map((p: any, index) => ({
       rank: index + 1,
       userId: p.userId,
       nickname: p.nickname,
       level: p.level,
       points: p.points,
       avatar: p.avatar,
+      course: p.currentCourse
+        ? {
+            name: (p.currentCourse as any).name,
+            companyId: (p.currentCourse as any).companyId,
+            companyName:
+              companyMap.get((p.currentCourse as any).companyId?.toString()) ||
+              null,
+          }
+        : null,
     }));
 
     return { leaderboard, totalCount };
@@ -250,7 +306,8 @@ export class ParticipantService {
 
   // ─── LEGACY: Contar todos ───
   async getCountAll(query: any) {
-    return this.participantModel.countDocuments(query).exec();
+    const count = await this.participantModel.countDocuments(query).exec();
+    return { count };
   }
 
   // ─── LEGACY: Buscar por texto ───

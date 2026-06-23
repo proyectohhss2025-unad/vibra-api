@@ -3,10 +3,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { AuthMiddleware } from 'src/infrastructure/auth/auth.middleware';
 import { PushNotificationController } from './push-notifications.controller';
 import { PushNotificationService } from './push-notifications.service';
-import {
-  DeviceToken,
-  DeviceTokenSchema,
-} from './schemas/device-token.schema';
+import { DeviceToken, DeviceTokenSchema } from './schemas/device-token.schema';
 
 @Module({
   imports: [

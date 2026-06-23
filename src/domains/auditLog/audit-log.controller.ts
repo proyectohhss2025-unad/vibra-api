@@ -63,15 +63,22 @@ export class AuditLogController {
   constructor(private readonly auditLogService: AuditLogService) {}
 
   /**
-   * Obtiene todos los registros de auditoría
+   * Obtiene todos los registros de auditoría con paginación
    *
-   * @returns Lista de registros de auditoría
+   * @param page Número de página
+   * @param limit Elementos por página
+   * @returns Lista paginada de registros de auditoría
    */
   @Get()
-  @ApiOperation({ summary: 'Listar registros de auditoría' })
-  @ApiOkResponse({ description: 'Listado de registros de auditoría.', type: [AuditLogDto] })
-  async getAllAuditLogs(): Promise<AuditLog[]> {
-    return this.auditLogService.getAuditLog();
+  @ApiOperation({ summary: 'Listar registros de auditoría (paginado)' })
+  @ApiQuery({ name: 'page', required: false, example: '1' })
+  @ApiQuery({ name: 'limit', required: false, example: '50' })
+  @ApiOkResponse({ description: 'Listado paginado de registros de auditoría.' })
+  async getAllAuditLogs(
+    @Query('page') page: string = '1',
+    @Query('limit') limit: string = '50',
+  ) {
+    return this.auditLogService.getAuditLog(parseInt(page), parseInt(limit));
   }
 
   /**
@@ -93,9 +100,20 @@ export class AuditLogController {
   @ApiQuery({ name: 'entity', required: false })
   @ApiQuery({ name: 'details', required: false })
   @ApiQuery({ name: 'ip', required: false })
-  @ApiQuery({ name: 'from', required: false, example: '2026-01-01T00:00:00.000Z' })
-  @ApiQuery({ name: 'to', required: false, example: '2026-01-31T23:59:59.999Z' })
-  @ApiOkResponse({ description: 'Resultados de búsqueda.', type: [AuditLogDto] })
+  @ApiQuery({
+    name: 'from',
+    required: false,
+    example: '2026-01-01T00:00:00.000Z',
+  })
+  @ApiQuery({
+    name: 'to',
+    required: false,
+    example: '2026-01-31T23:59:59.999Z',
+  })
+  @ApiOkResponse({
+    description: 'Resultados de búsqueda.',
+    type: [AuditLogDto],
+  })
   async searchAuditLogs(
     @Query() searchDto: SearchAuditLogDto,
   ): Promise<AuditLog[]> {

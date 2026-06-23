@@ -41,7 +41,10 @@ class ContactDto {
   @ApiProperty({ example: 'Hola, estamos interesados...' })
   message: string;
 
-  @ApiProperty({ enum: ['unread', 'read', 'in_progress', 'resolved', 'spam'], example: 'unread' })
+  @ApiProperty({
+    enum: ['unread', 'read', 'in_progress', 'resolved', 'spam'],
+    example: 'unread',
+  })
   status: string;
 
   @ApiPropertyOptional({ example: 'Contactar al 3001234567' })
@@ -93,18 +96,37 @@ export class ContactsController {
   @Post()
   @ApiOperation({
     summary: 'Crear un mensaje de contacto (público)',
-    description: 'Endpoint público para el formulario de contacto de la landing page. No requiere autenticación.',
+    description:
+      'Endpoint público para el formulario de contacto de la landing page. No requiere autenticación.',
   })
   @ApiBody({ type: CreateContactDto })
-  @ApiCreatedResponse({ description: 'Mensaje de contacto creado.', type: ContactDto })
+  @ApiCreatedResponse({
+    description: 'Mensaje de contacto creado.',
+    type: ContactDto,
+  })
   async create(@Body() createContactDto: CreateContactDto): Promise<Contact> {
     return this.contactsService.create(createContactDto);
+  }
+
+  @Get('search')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Buscar mensajes de contacto por término (admin)' })
+  @ApiQuery({ name: 'searchTerm', required: true, example: 'maria' })
+  @ApiOkResponse({ description: 'Resultados de búsqueda.', type: [ContactDto] })
+  async search(
+    @Query('searchTerm') searchTerm: string,
+  ): Promise<{ data: Contact[] }> {
+    const data = await this.contactsService.search(searchTerm);
+    return { data };
   }
 
   @Get('all')
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Listar todos los mensajes de contacto (admin)' })
-  @ApiOkResponse({ description: 'Lista de mensajes de contacto.', type: [ContactDto] })
+  @ApiOkResponse({
+    description: 'Lista de mensajes de contacto.',
+    type: [ContactDto],
+  })
   async findAll(): Promise<Contact[]> {
     return this.contactsService.findAll();
   }
@@ -114,8 +136,16 @@ export class ContactsController {
   @ApiOperation({ summary: 'Listar mensajes de contacto paginados (admin)' })
   @ApiQuery({ name: 'page', required: false, example: 1 })
   @ApiQuery({ name: 'limit', required: false, example: 10 })
-  @ApiQuery({ name: 'status', required: false, example: 'unread', description: 'Filtrar por estado' })
-  @ApiOkResponse({ description: 'Lista paginada de mensajes.', type: ContactPaginatedDto })
+  @ApiQuery({
+    name: 'status',
+    required: false,
+    example: 'unread',
+    description: 'Filtrar por estado',
+  })
+  @ApiOkResponse({
+    description: 'Lista paginada de mensajes.',
+    type: ContactPaginatedDto,
+  })
   async findAllPaginate(
     @Query('page') page: number = 1,
     @Query('limit') limit: number = 10,
@@ -127,20 +157,28 @@ export class ContactsController {
   @Get('id/:id')
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Obtener un mensaje de contacto por ID (admin)' })
-  @ApiParam({ name: 'id', description: 'ID del mensaje (MongoDB _id).', example: '66c9cce47e6a95e98116c0ab' })
+  @ApiParam({
+    name: 'id',
+    description: 'ID del mensaje (MongoDB _id).',
+    example: '66c9cce47e6a95e98116c0ab',
+  })
   @ApiOkResponse({ description: 'Mensaje encontrado.', type: ContactDto })
   @ApiNotFoundResponse({ description: 'Mensaje no encontrado.' })
   async findById(@Param('id') id: string): Promise<Contact> {
     const contact = await this.contactsService.findById(id);
     if (!contact) {
-      throw new NotFoundException(`Mensaje de contacto con id ${id} no encontrado`);
+      throw new NotFoundException(
+        `Mensaje de contacto con id ${id} no encontrado`,
+      );
     }
     return contact;
   }
 
   @Post('update')
   @UseGuards(JwtAuthGuard)
-  @ApiOperation({ summary: 'Actualizar estado/notas de un mensaje de contacto (admin)' })
+  @ApiOperation({
+    summary: 'Actualizar estado/notas de un mensaje de contacto (admin)',
+  })
   @ApiBody({ type: UpdateContactDto })
   @ApiOkResponse({ description: 'Mensaje actualizado.', type: ContactDto })
   async update(@Body() updateContactDto: UpdateContactDto): Promise<Contact> {
@@ -149,7 +187,9 @@ export class ContactsController {
 
   @Get('stats')
   @UseGuards(JwtAuthGuard)
-  @ApiOperation({ summary: 'Obtener estadísticas de mensajes de contacto (admin)' })
+  @ApiOperation({
+    summary: 'Obtener estadísticas de mensajes de contacto (admin)',
+  })
   @ApiOkResponse({ description: 'Conteos por estado.', type: ContactStatsDto })
   async getStats(): Promise<{
     total: number;

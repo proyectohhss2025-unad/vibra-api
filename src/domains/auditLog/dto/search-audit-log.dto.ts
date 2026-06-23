@@ -11,7 +11,10 @@ export class SearchAuditLogDto {
   @IsString()
   user?: string;
 
-  @ApiPropertyOptional({ description: 'Filtrar por acción.', example: 'CREATE' })
+  @ApiPropertyOptional({
+    description: 'Filtrar por acción.',
+    example: 'CREATE',
+  })
   @IsOptional()
   @IsString()
   action?: string;

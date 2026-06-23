@@ -7,7 +7,10 @@ export class CreateDocumentTypeDto {
   @IsNotEmpty()
   name: string;
 
-  @ApiProperty({ description: 'Descripción detallada.', example: 'Cédula de Ciudadanía' })
+  @ApiProperty({
+    description: 'Descripción detallada.',
+    example: 'Cédula de Ciudadanía',
+  })
   @IsString()
   @IsNotEmpty()
   description: string;
@@ -22,7 +25,10 @@ export class CreateDocumentTypeDto {
   @IsOptional()
   isActive?: boolean;
 
-  @ApiProperty({ description: 'Usuario que crea el registro.', example: 'seed' })
+  @ApiProperty({
+    description: 'Usuario que crea el registro.',
+    example: 'seed',
+  })
   @IsString()
   @IsNotEmpty()
   createdBy: string;

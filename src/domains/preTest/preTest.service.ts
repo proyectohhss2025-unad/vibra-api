@@ -11,16 +11,16 @@ export class PreTestService {
   constructor(
     @InjectModel(PreTest.name) private preTestModel: Model<TestDocument>,
     @InjectModel(Test.name) private testModel: Model<Test>,
-  ) { }
+  ) {}
 
   async create(createTestDto: CreatePreTestDto): Promise<PreTest> {
     const totalScore =
       typeof createTestDto.totalScore === 'number'
         ? createTestDto.totalScore
         : (createTestDto.responses || []).reduce(
-          (sum: number, response: any) => sum + (response.points || 0),
-          0,
-        );
+            (sum: number, response: any) => sum + (response.points || 0),
+            0,
+          );
 
     const test = new this.preTestModel({
       ...createTestDto,
@@ -49,13 +49,26 @@ export class PreTestService {
     testId: string,
     page: number = 1,
     limit: number = 10,
+    userId?: string,
+    dateFrom?: string,
+    dateTo?: string,
   ): Promise<{ data: any[]; total: number }> {
     const skip = (page - 1) * limit;
+
+    const matchFilter: any = { testId };
+    if (userId) {
+      matchFilter.userId = userId;
+    }
+    if (dateFrom || dateTo) {
+      matchFilter.createdAt = {};
+      if (dateFrom) matchFilter.createdAt.$gte = new Date(dateFrom);
+      if (dateTo) matchFilter.createdAt.$lte = new Date(dateTo);
+    }
 
     const [data, total] = await Promise.all([
       this.preTestModel
         .aggregate([
-          { $match: { testId } },
+          { $match: matchFilter },
           { $sort: { _id: -1 } },
           { $skip: skip },
           { $limit: limit },
@@ -84,7 +97,9 @@ export class PreTestService {
             $lookup: {
               from: 'roles',
               let: {
-                roleId: { $ifNull: [{ $arrayElemAt: ['$user.role', 0] }, null] },
+                roleId: {
+                  $ifNull: [{ $arrayElemAt: ['$user.role', 0] }, null],
+                },
               },
               pipeline: [
                 { $match: { $expr: { $eq: ['$_id', '$$roleId'] } } },
@@ -113,7 +128,7 @@ export class PreTestService {
           },
         ])
         .exec(),
-      this.preTestModel.countDocuments({ testId }).exec(),
+      this.preTestModel.countDocuments(matchFilter).exec(),
     ]);
 
     return { data, total };
@@ -126,7 +141,9 @@ export class PreTestService {
 
   async update(id: string, updateTestDto: UpdatePreTestDto): Promise<PreTest> {
     if (!updateTestDto || Object.keys(updateTestDto).length === 0) {
-      throw new NotFoundException('No se proporcionaron datos para actualizar.');
+      throw new NotFoundException(
+        'No se proporcionaron datos para actualizar.',
+      );
     }
 
     const updated = await this.preTestModel
@@ -241,13 +258,16 @@ export class PreTestService {
   }
 
   /**
-   * Obtiene el estado de todos los tests activos para un usuario.
-   * Indica cuáles ha completado, cuáles faltan y si puede continuar.
+   * Obtiene el estado de los tests activos para un usuario, filtrados opcionalmente por tipo.
    *
    * @param userId - ID del usuario (documentNumber)
+   * @param type - Opcional: 'initial' filtra por showAtStart, 'final' filtra por showAtEnd
    * @returns Estado de completitud de tests
    */
-  async getStatusByUserId(userId: string): Promise<{
+  async getStatusByUserId(
+    userId: string,
+    type?: 'initial' | 'final',
+  ): Promise<{
     totalTests: number;
     completedTests: number;
     pendingTests: number;
@@ -261,9 +281,20 @@ export class PreTestService {
       score?: number;
     }>;
   }> {
-    // Obtener todos los tests activos del catálogo
+    // Construir filtro base: solo tests activos
+    const filter: any = { isActive: true };
+
+    // Agregar filtro por bandera según el tipo solicitado
+    if (type === 'initial') {
+      filter.showAtStart = true;
+    } else if (type === 'final') {
+      filter.showAtEnd = true;
+    }
+    // Si type es undefined, se retornan todos los activos (backward compatible)
+
+    // Obtener tests activos del catálogo aplicando filtro
     const allTests = await this.testModel
-      .find({ isActive: true })
+      .find(filter)
       .select('testId title description')
       .sort({ createdAt: 1 })
       .exec();
@@ -275,7 +306,7 @@ export class PreTestService {
       .exec();
 
     // Mapa de tests completados por testId para acceso rápido
-    const completedMap = new Map<string, typeof userPretests[0]>();
+    const completedMap = new Map<string, (typeof userPretests)[0]>();
     for (const pt of userPretests) {
       if (!completedMap.has(pt.testId)) {
         completedMap.set(pt.testId, pt);

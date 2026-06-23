@@ -89,11 +89,16 @@ export class PermissionTemplatesController {
   @ApiOperation({ summary: 'Listar plantillas de permisos' })
   @ApiQuery({ name: 'page', required: false, example: 1 })
   @ApiQuery({ name: 'limit', required: false, example: 10 })
-  @ApiOkResponse({ description: 'Listado de plantillas.', type: PermissionTemplatesPaginatedDto })
+  @ApiOkResponse({
+    description: 'Listado de plantillas.',
+    type: PermissionTemplatesPaginatedDto,
+  })
   findAll(@Query('page') page?: number, @Query('limit') limit?: number) {
     // Convertir los parámetros de string a number si están presentes
     const pageNumber = page ? Number.parseInt(page.toString(), 10) : undefined;
-    const limitNumber = limit ? Number.parseInt(limit.toString(), 10) : undefined;
+    const limitNumber = limit
+      ? Number.parseInt(limit.toString(), 10)
+      : undefined;
 
     // Solo pasar los parámetros de paginación si al menos uno está definido
     if (pageNumber !== undefined || limitNumber !== undefined) {
@@ -109,7 +114,10 @@ export class PermissionTemplatesController {
   @Get(':id')
   @ApiOperation({ summary: 'Obtener plantilla por id' })
   @ApiParam({ name: 'id', description: 'ID de la plantilla.' })
-  @ApiOkResponse({ description: 'Plantilla encontrada.', type: PermissionTemplateDto })
+  @ApiOkResponse({
+    description: 'Plantilla encontrada.',
+    type: PermissionTemplateDto,
+  })
   async findOne(@Param('id') id: string) {
     const template = await this.permissionTemplatesService.findOne(id);
     if (!template) {
@@ -124,7 +132,10 @@ export class PermissionTemplatesController {
   @Post()
   @ApiOperation({ summary: 'Crear plantilla de permisos' })
   @ApiBody({ type: CreatePermissionTemplateDto })
-  @ApiCreatedResponse({ description: 'Plantilla creada.', type: PermissionTemplateDto })
+  @ApiCreatedResponse({
+    description: 'Plantilla creada.',
+    type: PermissionTemplateDto,
+  })
   async create(@Body() permissionTemplate: Partial<PermissionTemplate>) {
     try {
       return await this.permissionTemplatesService.create(permissionTemplate);
@@ -150,7 +161,10 @@ export class PermissionTemplatesController {
       required: ['file'],
     },
   })
-  @ApiOkResponse({ description: 'Plantillas insertadas desde archivo.', schema: { type: 'object' } })
+  @ApiOkResponse({
+    description: 'Plantillas insertadas desde archivo.',
+    schema: { type: 'object' },
+  })
   async addManyPermissionTemplates(@UploadedFile() file: Express.Multer.File) {
     if (!file) {
       logger.warn('No file uploaded');
@@ -214,7 +228,10 @@ export class PermissionTemplatesController {
   @ApiOperation({ summary: 'Agregar permiso a una plantilla' })
   @ApiParam({ name: 'id', description: 'ID de la plantilla.' })
   @ApiBody({ type: AddPermissionToTemplateDto })
-  @ApiOkResponse({ description: 'Plantilla actualizada.', schema: { type: 'object' } })
+  @ApiOkResponse({
+    description: 'Plantilla actualizada.',
+    schema: { type: 'object' },
+  })
   async addPermissionToTemplate(
     @Param('id') id: string,
     @Body() body: AddPermissionToTemplateDto,
@@ -239,8 +256,7 @@ export class PermissionTemplatesController {
       const permissions = existingPermissionTemplate.permissions as any[];
       const foundItem = permissions.some(
         (p) =>
-          p.toString() === permissionId ||
-          (p._id?.toString() === permissionId),
+          p.toString() === permissionId || p._id?.toString() === permissionId,
       );
 
       if (foundItem) {
@@ -295,7 +311,10 @@ export class PermissionTemplatesController {
       required: ['permissionId', 'userId', 'deleted', 'deletedBy'],
     },
   })
-  @ApiOkResponse({ description: 'Permiso actualizado.', schema: { type: 'object' } })
+  @ApiOkResponse({
+    description: 'Permiso actualizado.',
+    schema: { type: 'object' },
+  })
   async softDeletePermissionToUser(
     @Body()
     body: {
@@ -345,7 +364,10 @@ export class PermissionTemplatesController {
   @ApiOperation({ summary: 'Actualizar plantilla de permisos' })
   @ApiParam({ name: 'id', description: 'ID de la plantilla.' })
   @ApiBody({ type: CreatePermissionTemplateDto })
-  @ApiOkResponse({ description: 'Plantilla actualizada.', type: PermissionTemplateDto })
+  @ApiOkResponse({
+    description: 'Plantilla actualizada.',
+    type: PermissionTemplateDto,
+  })
   async update(
     @Param('id') id: string,
     @Body() permissionTemplate: Partial<PermissionTemplate>,
@@ -363,7 +385,10 @@ export class PermissionTemplatesController {
   @Delete(':id')
   @ApiOperation({ summary: 'Eliminar plantilla de permisos' })
   @ApiParam({ name: 'id', description: 'ID de la plantilla.' })
-  @ApiOkResponse({ description: 'Plantilla eliminada.', type: PermissionTemplateDto })
+  @ApiOkResponse({
+    description: 'Plantilla eliminada.',
+    type: PermissionTemplateDto,
+  })
   async remove(@Param('id') id: string) {
     const deleted = await this.permissionTemplatesService.remove(id);
     if (!deleted) {

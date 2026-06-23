@@ -11,6 +11,7 @@ import {
   UploadedFile,
   UseInterceptors,
 } from '@nestjs/common';
+import { BypassPermission } from 'src/infrastructure/auth/bypass-permission.decorator';
 import { FeedbackService } from './feedback.service';
 import { Feedback } from './schemas/feedback.schema';
 import { ConvertToIdeaDto } from './dto/convert-to-idea.dto';
@@ -63,12 +64,18 @@ export class FeedbackController {
   @ApiOperation({ summary: 'Listar feedbacks (paginado)' })
   @ApiQuery({ name: 'page', required: false, example: '1' })
   @ApiQuery({ name: 'rows', required: false, example: '10' })
-  @ApiOkResponse({ description: 'Listado paginado.', type: FeedbacksPaginatedDto })
+  @ApiOkResponse({
+    description: 'Listado paginado.',
+    type: FeedbacksPaginatedDto,
+  })
   async findAll(
     @Query('page') page = '1',
     @Query('rows') rows = '10',
   ): Promise<{ feedbacks: Feedback[]; length: number }> {
-    return this.feedbackService.findAll(Number.parseInt(page), Number.parseInt(rows));
+    return this.feedbackService.findAll(
+      Number.parseInt(page),
+      Number.parseInt(rows),
+    );
   }
 
   /**
@@ -91,7 +98,13 @@ export class FeedbackController {
    */
   @Post('by-description')
   @ApiOperation({ summary: 'Buscar feedback por descripción' })
-  @ApiBody({ schema: { type: 'object', properties: { description: { type: 'string' } }, required: ['description'] } })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: { description: { type: 'string' } },
+      required: ['description'],
+    },
+  })
   @ApiOkResponse({ description: 'Feedback encontrado.', type: FeedbackDto })
   async findByDescription(
     @Body('description') description: string,
@@ -106,12 +119,36 @@ export class FeedbackController {
    * @param rows Rows per page
    * @returns Object with feedbacks array and message
    */
+  @BypassPermission()
+  @Get('search')
+  @ApiOperation({
+    summary: 'Buscar feedbacks por término (compatible con buscador general)',
+  })
+  @ApiQuery({ name: 'searchTerm', required: true, example: 'error' })
+  @ApiOkResponse({
+    description: 'Resultados de búsqueda.',
+    schema: { type: 'object' },
+  })
+  async search(
+    @Query('searchTerm') searchTerm: string,
+  ): Promise<{ data: Feedback[] }> {
+    const result = await this.feedbackService.searchFeedbacks(
+      searchTerm,
+      1,
+      20,
+    );
+    return { data: result.data };
+  }
+
   @Get('search/term')
   @ApiOperation({ summary: 'Buscar feedbacks por término' })
   @ApiQuery({ name: 'searchTerm', required: true, example: 'error' })
   @ApiQuery({ name: 'page', required: false, example: '1' })
   @ApiQuery({ name: 'rows', required: false, example: '10' })
-  @ApiOkResponse({ description: 'Resultados de búsqueda.', schema: { type: 'object' } })
+  @ApiOkResponse({
+    description: 'Resultados de búsqueda.',
+    schema: { type: 'object' },
+  })
   async searchFeedbacks(
     @Query('searchTerm') searchTerm: string,
     @Query('page') page = '1',
@@ -161,7 +198,10 @@ export class FeedbackController {
       required: ['file'],
     },
   })
-  @ApiOkResponse({ description: 'Feedbacks creados desde archivo.', schema: { type: 'object' } })
+  @ApiOkResponse({
+    description: 'Feedbacks creados desde archivo.',
+    schema: { type: 'object' },
+  })
   async uploadCsv(
     @UploadedFile() file: Express.Multer.File,
   ): Promise<{ message: string }> {
@@ -205,7 +245,13 @@ export class FeedbackController {
   @Put(':id/status')
   @ApiOperation({ summary: 'Actualizar estado del feedback' })
   @ApiParam({ name: 'id', description: 'ID del feedback.' })
-  @ApiBody({ schema: { type: 'object', properties: { isActive: { type: 'boolean' } }, required: ['isActive'] } })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: { isActive: { type: 'boolean' } },
+      required: ['isActive'],
+    },
+  })
   @ApiOkResponse({ description: 'Estado actualizado.', type: FeedbackDto })
   async updateStatus(
     @Param('id') id: string,
@@ -265,7 +311,10 @@ export class FeedbackController {
   @Delete(':id/hard')
   @ApiOperation({ summary: 'Eliminar feedback (hard delete)' })
   @ApiParam({ name: 'id', description: 'ID del feedback.' })
-  @ApiOkResponse({ description: 'Feedback eliminado definitivamente.', type: FeedbackDto })
+  @ApiOkResponse({
+    description: 'Feedback eliminado definitivamente.',
+    type: FeedbackDto,
+  })
   async hardDelete(@Param('id') id: string): Promise<Feedback> {
     return this.feedbackService.hardDeleteFeedback(id);
   }
@@ -287,7 +336,10 @@ export class FeedbackController {
       required: ['deleted'],
     },
   })
-  @ApiOkResponse({ description: 'Feedback marcado como eliminado.', type: FeedbackDto })
+  @ApiOkResponse({
+    description: 'Feedback marcado como eliminado.',
+    type: FeedbackDto,
+  })
   async softDelete(
     @Param('id') id: string,
     @Body('deleted') deleted: boolean,

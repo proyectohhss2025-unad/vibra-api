@@ -1,10 +1,4 @@
-import {
-  Body,
-  Controller,
-  Delete,
-  Post,
-  Req,
-} from '@nestjs/common';
+import { Body, Controller, Delete, Post, Req } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiBody,
@@ -23,7 +17,7 @@ import { PushNotificationService } from './push-notifications.service';
 export class PushNotificationController {
   constructor(
     private readonly pushNotificationService: PushNotificationService,
-  ) { }
+  ) {}
 
   @Post('register')
   @ApiOperation({

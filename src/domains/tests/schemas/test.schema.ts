@@ -50,7 +50,17 @@ export class Test {
   @Prop({ default: true })
   isActive: boolean;
 
-  @Prop({ type: [TestQuestion], required: true, validate: (v: any[]) => v.length > 0 })
+  @Prop({ default: false })
+  showAtStart: boolean;
+
+  @Prop({ default: false })
+  showAtEnd: boolean;
+
+  @Prop({
+    type: [TestQuestion],
+    required: true,
+    validate: (v: any[]) => v.length > 0,
+  })
   questions: TestQuestion[];
 
   @Prop({ type: [String], default: [] })
@@ -68,5 +78,4 @@ export class Test {
 
 export const TestSchema = SchemaFactory.createForClass(Test);
 
-TestSchema.index({ testId: 1 }, { unique: true });
 TestSchema.index({ title: 'text', description: 'text' });

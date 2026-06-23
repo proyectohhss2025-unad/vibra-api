@@ -12,7 +12,10 @@ export class CreateIdeaDto {
   @IsString()
   id: string;
 
-  @ApiProperty({ example: 'Implementar nueva funcionalidad X', description: 'Descripción de la idea' })
+  @ApiProperty({
+    example: 'Implementar nueva funcionalidad X',
+    description: 'Descripción de la idea',
+  })
   @IsString()
   @MaxLength(500)
   descripcion: string;
@@ -22,7 +25,10 @@ export class CreateIdeaDto {
   @IsString()
   detalle?: string;
 
-  @ApiPropertyOptional({ example: ['feature', 'ux'], description: 'Tags de la idea' })
+  @ApiPropertyOptional({
+    example: ['feature', 'ux'],
+    description: 'Tags de la idea',
+  })
   @IsOptional()
   @IsArray()
   @IsString({ each: true })
@@ -33,7 +39,10 @@ export class CreateIdeaDto {
   @IsEnum(['alta', 'media', 'baja'])
   prioridad?: string;
 
-  @ApiPropertyOptional({ enum: ['pendiente', 'en_desarrollo', 'desarrollada'], example: 'pendiente' })
+  @ApiPropertyOptional({
+    enum: ['pendiente', 'en_desarrollo', 'desarrollada'],
+    example: 'pendiente',
+  })
   @IsOptional()
   @IsEnum(['pendiente', 'en_desarrollo', 'desarrollada'])
   estado?: string;

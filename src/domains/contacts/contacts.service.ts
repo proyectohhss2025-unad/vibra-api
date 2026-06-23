@@ -15,7 +15,9 @@ export class ContactsService {
   }
 
   async create(createContactDto: CreateContactDto): Promise<Contact> {
-    this.logger.log(`Creating new contact message from ${createContactDto.email}`);
+    this.logger.log(
+      `Creating new contact message from ${createContactDto.email}`,
+    );
     const created = new this.contactModel({
       ...createContactDto,
       status: 'unread',
@@ -33,7 +35,9 @@ export class ContactsService {
     limit: number = 10,
     status?: string,
   ): Promise<{ data: Contact[]; total: number }> {
-    this.logger.log(`Fetching contact messages page=${page} limit=${limit} status=${status || 'all'}`);
+    this.logger.log(
+      `Fetching contact messages page=${page} limit=${limit} status=${status || 'all'}`,
+    );
 
     const filter: any = {};
     if (status && status !== 'all') {
@@ -55,7 +59,9 @@ export class ContactsService {
     this.logger.log(`Finding contact message by _id: ${id}`);
     const contact = await this.contactModel.findById(id).exec();
     if (!contact) {
-      throw new NotFoundException(`Mensaje de contacto con id ${id} no encontrado`);
+      throw new NotFoundException(
+        `Mensaje de contacto con id ${id} no encontrado`,
+      );
     }
     return contact;
   }
@@ -66,7 +72,10 @@ export class ContactsService {
     const setFields: any = {};
     if (updateContactDto.status !== undefined) {
       setFields.status = updateContactDto.status;
-      if (updateContactDto.status === 'read' || updateContactDto.status === 'in_progress') {
+      if (
+        updateContactDto.status === 'read' ||
+        updateContactDto.status === 'in_progress'
+      ) {
         setFields.readAt = new Date();
       }
       if (updateContactDto.status === 'resolved') {
@@ -86,9 +95,30 @@ export class ContactsService {
       .exec();
 
     if (!updated) {
-      throw new NotFoundException(`Mensaje de contacto con id ${updateContactDto._id} no encontrado`);
+      throw new NotFoundException(
+        `Mensaje de contacto con id ${updateContactDto._id} no encontrado`,
+      );
     }
     return updated;
+  }
+
+  async search(searchTerm: string): Promise<Contact[]> {
+    if (!searchTerm || searchTerm === 'all') {
+      return this.contactModel.find().sort({ createdAt: -1 }).limit(20).exec();
+    }
+    const regex = new RegExp(searchTerm, 'i');
+    return this.contactModel
+      .find({
+        $or: [
+          { name: { $regex: regex } },
+          { email: { $regex: regex } },
+          { subject: { $regex: regex } },
+          { message: { $regex: regex } },
+        ],
+      })
+      .sort({ createdAt: -1 })
+      .limit(20)
+      .exec();
   }
 
   async getStats(): Promise<{

@@ -1,4 +1,17 @@
-import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Delete,
+  Query,
+  Request,
+  UseInterceptors,
+  UploadedFile,
+  Res,
+  NotFoundException,
+} from '@nestjs/common';
 import {
   ApiBody,
   ApiCreatedResponse,
@@ -11,15 +24,26 @@ import {
   ApiQuery,
   ApiResponse,
   ApiTags,
+  ApiConsumes,
 } from '@nestjs/swagger';
 import { JwtService } from '@nestjs/jwt';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
+import { Response } from 'express';
 import { EventsGateway } from '../../infrastructure/sockets/events.gateway';
 import { BypassPermission } from 'src/infrastructure/auth/bypass-permission.decorator';
 import { RequirePermission } from 'src/infrastructure/auth/require-permission.decorator';
+import { Public } from 'src/infrastructure/auth/public.decorator';
+import { FileUploadService } from '../../infrastructure/file-upload/file-upload.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { User } from './schemas/user.schema';
 import { UsersService } from './users.service';
+import {
+  SelectAvatarDto,
+  AvatarGalleryResponseDto,
+  AvatarGalleryItemDto,
+} from './dto/avatar-gallery.dto';
 
 class UserCreateResponseDto {
   @ApiProperty({
@@ -171,7 +195,8 @@ export class UsersController {
     private readonly usersService: UsersService,
     private readonly eventsGateway: EventsGateway,
     private readonly jwtService: JwtService,
-  ) { }
+    private readonly fileUploadService: FileUploadService,
+  ) {}
 
   @Get('trigger')
   @ApiOperation({
@@ -268,8 +293,7 @@ export class UsersController {
   @Get('count-all-users')
   @ApiOperation({
     summary: 'Obtener el número total de usuarios',
-    description:
-      'Obtiene el número total de usuarios registrados.',
+    description: 'Obtiene el número total de usuarios registrados.',
   })
   @ApiOkResponse({
     description: 'Número total de usuarios obtenido exitosamente.',
@@ -321,6 +345,18 @@ export class UsersController {
   }
 
   @BypassPermission()
+  @Get('search')
+  @ApiOperation({ summary: 'Buscar usuarios por término' })
+  @ApiQuery({ name: 'searchTerm', required: true, example: 'maya' })
+  @ApiOkResponse({ description: 'Usuarios encontrados.', type: [UserDto] })
+  async search(
+    @Query('searchTerm') searchTerm: string,
+  ): Promise<{ data: Partial<User>[] }> {
+    const data = await this.usersService.search(searchTerm);
+    return { data };
+  }
+
+  @BypassPermission()
   @Get('id/:id')
   @ApiOperation({ summary: 'Obtener usuario por id' })
   @ApiParam({ name: 'id', description: 'ID del usuario.' })
@@ -355,6 +391,146 @@ export class UsersController {
     @Query('searchTerm') searchTerm: string = '',
     @Query('limit') limit: string = '10',
   ) {
-    return this.usersService.searchByRole('docente', searchTerm, parseInt(limit));
+    return this.usersService.searchByRole(
+      'docente',
+      searchTerm,
+      parseInt(limit),
+    );
+  }
+
+  // ═════════════════════════════════════════════════════════════════════════
+  //  AVATAR GALLERY ENDPOINTS
+  // ═════════════════════════════════════════════════════════════════════════
+
+  @BypassPermission()
+  @Get('avatar/gallery')
+  @ApiOperation({
+    summary: 'Obtener galería de avatares',
+    description:
+      'Retorna la galería de avatares del usuario autenticado y el avatar activo.',
+  })
+  @ApiOkResponse({
+    description: 'Galería de avatares.',
+    type: AvatarGalleryResponseDto,
+  })
+  async getAvatarGallery(
+    @Request() req: any,
+  ): Promise<AvatarGalleryResponseDto> {
+    const userId = req.user?.sub || req.user?._id;
+    return this.usersService.getAvatarGallery(userId);
+  }
+
+  @BypassPermission()
+  @Post('avatar/select')
+  @ApiOperation({
+    summary: 'Seleccionar avatar activo',
+    description:
+      'Marca un avatar de la galería como el avatar activo del usuario.',
+  })
+  @ApiBody({ type: SelectAvatarDto })
+  @ApiOkResponse({
+    description: 'Avatar activo actualizado.',
+    schema: { properties: { avatar: { type: 'string' } } },
+  })
+  async selectAvatar(
+    @Request() req: any,
+    @Body() dto: SelectAvatarDto,
+  ): Promise<{ avatar: string }> {
+    const userId = req.user?.sub || req.user?._id;
+    return this.usersService.selectAvatar(userId, dto.galleryId);
+  }
+
+  @BypassPermission()
+  @Post('avatar/upload')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: memoryStorage(),
+      limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
+    }),
+  )
+  @ApiOperation({
+    summary: 'Subir imagen de avatar',
+    description:
+      'Sube una imagen (JPEG, PNG, GIF, WebP) a la galería de avatares del usuario.',
+  })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: {
+          type: 'string',
+          format: 'binary',
+          description: 'Archivo de imagen (JPEG, PNG, GIF, WebP, máx 5MB)',
+        },
+      },
+    },
+  })
+  @ApiOkResponse({
+    description: 'Imagen subida y agregada a la galería.',
+    schema: {
+      properties: {
+        galleryItem: { type: 'object' },
+        avatar: { type: 'string' },
+      },
+    },
+  })
+  async uploadAvatar(
+    @Request() req: any,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    const userId = req.user?.sub || req.user?._id;
+    return this.usersService.uploadAvatarImage(userId, file);
+  }
+
+  @BypassPermission()
+  @Delete('avatar/:galleryId')
+  @ApiOperation({
+    summary: 'Eliminar avatar de la galería',
+    description:
+      'Elimina un avatar subido (type=upload) de la galería del usuario.',
+  })
+  @ApiParam({
+    name: 'galleryId',
+    description: 'ID del item en avatarGallery a eliminar.',
+    example: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  })
+  @ApiOkResponse({ description: 'Item eliminado correctamente.' })
+  async deleteAvatarItem(
+    @Request() req: any,
+    @Param('galleryId') galleryId: string,
+  ): Promise<{ message: string }> {
+    const userId = req.user?.sub || req.user?._id;
+    await this.usersService.deleteAvatarGalleryItem(userId, galleryId);
+    return { message: 'Item eliminado correctamente' };
+  }
+
+  @BypassPermission()
+  @Public()
+  @Get('avatar/stream/:fileId')
+  @ApiOperation({
+    summary: 'Servir imagen de avatar desde GridFS',
+    description:
+      'Streaming público de una imagen subida a GridFS por su fileId.',
+  })
+  @ApiParam({
+    name: 'fileId',
+    description: 'ID del archivo en GridFS.',
+    example: '66c9cce47e6a95e98116c0ab',
+  })
+  @ApiOkResponse({ description: 'Stream de la imagen.' })
+  async streamAvatar(@Param('fileId') fileId: string, @Res() res: Response) {
+    try {
+      const stream = await this.fileUploadService.getFileStream(fileId);
+      // Todas las imágenes subidas se convierten a JPEG en la compresión
+      stream.on('error', () => {
+        if (!res.headersSent)
+          res.status(404).json({ message: 'Imagen no encontrada' });
+      });
+      res.set('Content-Type', 'image/jpeg');
+      stream.pipe(res);
+    } catch {
+      throw new NotFoundException('Imagen no encontrada');
+    }
   }
 }

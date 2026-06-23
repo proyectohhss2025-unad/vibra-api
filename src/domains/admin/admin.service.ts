@@ -1,18 +1,13 @@
 import { Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { InjectModel } from '@nestjs/mongoose';
 import mongoose, { Model } from 'mongoose';
 import { AppLoggerService } from 'src/helpers/logger/logger.service';
-import * as fs from 'fs';
-import * as path from 'path';
-import {
-  NOTIFICATION_CHANNEL_INBOX,
-  NOTIFICATION_TYPE_ALERT,
-  NOTIFICATION_TYPE_INFO,
-} from '../../utils/constants';
-import { generateSerial } from '../../utils/string';
 import { BackupService } from '../../infrastructure/backup/backup.service';
+import { File } from '../files/schemas/file.schema';
+import { IdeasService } from '../ideas/ideas.service';
 import { NotificationService } from '../notification/notification.service';
+import { Notification } from '../notification/schemas/notification.schema';
+import { Report } from '../reports/schemas/report.schema';
 
 @Injectable()
 export class AdminService {
@@ -25,7 +20,7 @@ export class AdminService {
     @InjectModel(Report.name) private reportModel: Model<Report>,
     private backupService: BackupService,
     private notificationService: NotificationService,
-    private configService: ConfigService,
+    private ideasService: IdeasService,
   ) {}
 
   /**
@@ -115,89 +110,40 @@ export class AdminService {
   }
 
   /**
-   * Get status information about the ideas.json file
+   * Get status information about the ideas collection in MongoDB
    *
-   * @returns Ideas file status
+   * @returns Ideas status from MongoDB
    */
   async getIdeasStatus(): Promise<{
-    ideasPath: string;
-    resolvedPath: string;
-    fileExists: boolean;
     totalIdeas: number;
     enDesarrollo: number;
     pendientes: number;
-    lastModified: string | null;
+    completadas: number;
   }> {
-    const relativePath = this.configService.get<string>(
-      'IDEAS_JSON_PATH',
-      '../.opencode/skills/ideas/data/ideas.json',
-    );
-    const resolvedPath = path.resolve(process.cwd(), relativePath);
-    const fileExists = fs.existsSync(resolvedPath);
-
-    let totalIdeas = 0;
-    let enDesarrollo = 0;
-    let pendientes = 0;
-    let lastModified: string | null = null;
-
-    if (fileExists) {
-      try {
-        const raw = fs.readFileSync(resolvedPath, 'utf8');
-        const data = JSON.parse(raw);
-        const ideas = data.ideas || [];
-        totalIdeas = ideas.length;
-        enDesarrollo = ideas.filter(
-          (i: any) => i.estado === 'en_desarrollo',
-        ).length;
-        pendientes = ideas.filter(
-          (i: any) => i.estado === 'pendiente',
-        ).length;
-        const stats = fs.statSync(resolvedPath);
-        lastModified = stats.mtime.toISOString();
-      } catch (error) {
-        this.logger.error(`Error reading ideas.json: ${error.message}`);
-      }
+    try {
+      const estadisticas = await this.ideasService.getEstadisticas();
+      return {
+        totalIdeas: estadisticas.total,
+        enDesarrollo: estadisticas.en_desarrollo,
+        pendientes: estadisticas.pendientes,
+        completadas: estadisticas.desarrolladas,
+      };
+    } catch (error) {
+      this.logger.error(`Error reading ideas from MongoDB: ${error.message}`);
+      return { totalIdeas: 0, enDesarrollo: 0, pendientes: 0, completadas: 0 };
     }
-
-    return {
-      ideasPath: relativePath,
-      resolvedPath,
-      fileExists,
-      totalIdeas,
-      enDesarrollo,
-      pendientes,
-      lastModified,
-    };
   }
 
   /**
-   * Get all unique tags from ideas.json for autocomplete
+   * Get all unique tags from ideas collection in MongoDB for autocomplete
    *
    * @returns List of unique tags sorted alphabetically
    */
   async getAvailableTags(): Promise<{ tags: string[] }> {
-    const relativePath = this.configService.get<string>(
-      'IDEAS_JSON_PATH',
-      '../.opencode/skills/ideas/data/ideas.json',
-    );
-    const resolvedPath = path.resolve(process.cwd(), relativePath);
-
-    if (!fs.existsSync(resolvedPath)) {
-      return { tags: [] };
-    }
-
     try {
-      const raw = fs.readFileSync(resolvedPath, 'utf8');
-      const data = JSON.parse(raw);
-      const allTags: string[] = (data.ideas || [])
-        .flatMap((idea: any) => idea.tags || [])
-        .filter((tag: any) => tag && typeof tag === 'string' && tag.trim().length > 0)
-        .map((tag: string) => tag.trim().toLowerCase());
-
-      const uniqueTags = [...new Set(allTags)].sort();
-      return { tags: uniqueTags };
+      return await this.ideasService.getAllTags();
     } catch (error) {
-      this.logger.error(`Error reading tags from ideas.json: ${error.message}`);
+      this.logger.error(`Error reading tags from MongoDB: ${error.message}`);
       return { tags: [] };
     }
   }

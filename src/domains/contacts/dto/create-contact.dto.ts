@@ -38,7 +38,8 @@ export class CreateContactDto {
 
   @ApiProperty({
     description: 'Cuerpo del mensaje.',
-    example: 'Hola, soy directora del Colegio Los Andes y estamos interesados...',
+    example:
+      'Hola, soy directora del Colegio Los Andes y estamos interesados...',
   })
   @IsString()
   @IsNotEmpty()

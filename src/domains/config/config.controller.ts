@@ -118,7 +118,10 @@ export class ConfigController {
   @ApiOperation({ summary: 'Listar flags (paginado)' })
   @ApiQuery({ name: 'page', required: true, example: '1' })
   @ApiQuery({ name: 'rows', required: true, example: '10' })
-  @ApiOkResponse({ description: 'Listado paginado de flags.', schema: { type: 'object' } })
+  @ApiOkResponse({
+    description: 'Listado paginado de flags.',
+    schema: { type: 'object' },
+  })
   async getAllFlagsConfigs(
     @Query('page') page: string,
     @Query('rows') rows: string,
@@ -136,7 +139,10 @@ export class ConfigController {
   @ApiOperation({ summary: 'Listar configuraciones (paginado)' })
   @ApiQuery({ name: 'page', required: true, example: '1' })
   @ApiQuery({ name: 'rows', required: true, example: '10' })
-  @ApiOkResponse({ description: 'Listado paginado de configuraciones.', type: ConfigsPaginatedDto })
+  @ApiOkResponse({
+    description: 'Listado paginado de configuraciones.',
+    type: ConfigsPaginatedDto,
+  })
   async getAllConfigs(
     @Query('page') page: string,
     @Query('rows') rows: string,
@@ -221,7 +227,10 @@ export class ConfigController {
       required: ['configId', 'userId'],
     },
   })
-  @ApiOkResponse({ description: 'Resultado de validación.', schema: { type: 'object' } })
+  @ApiOkResponse({
+    description: 'Resultado de validación.',
+    schema: { type: 'object' },
+  })
   async validateUserInConfig(
     @Body('configId') configId: string,
     @Body('userId') userId: string,
@@ -252,7 +261,10 @@ export class ConfigController {
   @Get('search')
   @ApiOperation({ summary: 'Buscar configuraciones' })
   @ApiQuery({ name: 'searchTerm', required: true, example: 'feature' })
-  @ApiOkResponse({ description: 'Resultados de búsqueda.', schema: { type: 'array', items: { type: 'object' } } })
+  @ApiOkResponse({
+    description: 'Resultados de búsqueda.',
+    schema: { type: 'array', items: { type: 'object' } },
+  })
   async searchConfigs(@Query('searchTerm') searchTerm: string) {
     return this.configService.searchConfigs(searchTerm);
   }

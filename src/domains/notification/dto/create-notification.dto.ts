@@ -57,4 +57,3 @@ export class CreateNotificationDto {
   @IsString()
   createdBy?: string;
 }
-

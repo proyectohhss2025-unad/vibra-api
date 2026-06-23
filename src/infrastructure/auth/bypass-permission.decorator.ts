@@ -17,5 +17,4 @@ export const BYPASS_PERMISSION_KEY = 'bypass_permission';
  * }
  * ```
  */
-export const BypassPermission = () =>
-  SetMetadata(BYPASS_PERMISSION_KEY, true);
+export const BypassPermission = () => SetMetadata(BYPASS_PERMISSION_KEY, true);

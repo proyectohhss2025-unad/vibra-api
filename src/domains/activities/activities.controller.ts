@@ -23,6 +23,7 @@ import {
 } from '@nestjs/swagger';
 import { BypassPermission } from 'src/infrastructure/auth/bypass-permission.decorator';
 import { RequirePermission } from 'src/infrastructure/auth/require-permission.decorator';
+import { UserResponseService } from 'src/domains/userResponses/userResponse.service';
 import { ActivitiesService } from './activities.service';
 import { ActivityResponseDto } from './dto/activity-response.dto';
 import { CreateActivityDto, UpdateActivityDto } from './dto/activity.dto';
@@ -119,7 +120,10 @@ class ActivitiesPaginatedDto {
 @Controller('api/activities')
 @RequirePermission('16')
 export class ActivitiesController {
-  constructor(private readonly activitiesService: ActivitiesService) { }
+  constructor(
+    private readonly activitiesService: ActivitiesService,
+    private readonly userResponseService: UserResponseService,
+  ) {}
 
   @Post()
   @ApiOperation({
@@ -155,7 +159,10 @@ export class ActivitiesController {
   })
   @ApiQuery({ name: 'page', required: false, example: 1 })
   @ApiQuery({ name: 'limit', required: false, example: 10 })
-  @ApiOkResponse({ description: 'Listado paginado.', type: ActivitiesPaginatedDto })
+  @ApiOkResponse({
+    description: 'Listado paginado.',
+    type: ActivitiesPaginatedDto,
+  })
   findAll(
     @Query('emotion') emotion: string,
     @Query('userId') userId: string,
@@ -176,8 +183,17 @@ export class ActivitiesController {
     description:
       'Retorna el conteo de user responses agrupadas por mes para un año específico. Útil para gráficas de participación.',
   })
-  @ApiQuery({ name: 'year', required: false, example: 2026, description: 'Año a consultar (default: año actual)' })
-  @ApiQuery({ name: 'courseId', required: false, description: 'Filtrar por curso' })
+  @ApiQuery({
+    name: 'year',
+    required: false,
+    example: 2026,
+    description: 'Año a consultar (default: año actual)',
+  })
+  @ApiQuery({
+    name: 'courseId',
+    required: false,
+    description: 'Filtrar por curso',
+  })
   @ApiOkResponse({
     description: 'Actividades por mes.',
     schema: {
@@ -202,11 +218,37 @@ export class ActivitiesController {
   }
 
   @BypassPermission()
+  @Get('created-by-month')
+  @ApiOperation({
+    summary: 'Obtener actividades creadas agrupadas por mes',
+    description:
+      'Retorna el conteo de actividades creadas en el sistema agrupadas por mes para un año específico.',
+  })
+  @ApiQuery({ name: 'year', required: false, example: 2026 })
+  @ApiOkResponse({
+    description: 'Actividades creadas por mes.',
+    schema: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          month: { type: 'number', example: 1 },
+          count: { type: 'number', example: 5 },
+        },
+      },
+    },
+  })
+  getCreatedActivitiesByMonth(@Query('year') year?: number) {
+    return this.activitiesService.getCreatedActivitiesByMonth(
+      year ?? new Date().getFullYear(),
+    );
+  }
+
+  @BypassPermission()
   @Get('count-all-activities')
   @ApiOperation({
     summary: 'Obtener el número total de actividades',
-    description:
-      'Obtiene el número total de actividades registradas.',
+    description: 'Obtiene el número total de actividades registradas.',
   })
   @ApiOkResponse({
     description: 'Número total de actividades obtenidas exitosamente.',
@@ -225,7 +267,8 @@ export class ActivitiesController {
   @Get('count-by-type')
   @ApiOperation({
     summary: 'Contar actividades por tipo',
-    description: 'Retorna el número de actividades activas filtradas por tipo (reto, evento_personal, etc).',
+    description:
+      'Retorna el número de actividades activas filtradas por tipo (reto, evento_personal, etc).',
   })
   @ApiQuery({ name: 'type', required: true, example: 'reto' })
   @ApiOkResponse({
@@ -241,6 +284,43 @@ export class ActivitiesController {
     return { count };
   }
 
+  @BypassPermission()
+  @Get('check-date')
+  @ApiOperation({
+    summary: 'Verificar si ya existe actividad para una fecha',
+    description:
+      'Retorna si ya hay una actividad programada para la fecha indicada. Útil para evitar duplicados en el formulario.',
+  })
+  @ApiQuery({
+    name: 'date',
+    required: true,
+    example: '2026-05-31',
+    description: 'Fecha en formato YYYY-MM-DD',
+  })
+  @ApiQuery({
+    name: 'excludeId',
+    required: false,
+    description: 'ID de actividad a excluir (para edición)',
+  })
+  @ApiOkResponse({
+    schema: {
+      type: 'object',
+      properties: {
+        exists: { type: 'boolean' },
+      },
+    },
+  })
+  async checkDate(
+    @Query('date') date: string,
+    @Query('excludeId') excludeId?: string,
+  ) {
+    const exists = await this.activitiesService.checkDateExists(
+      date,
+      excludeId,
+    );
+    return { exists };
+  }
+
   @Get('all')
   @ApiOperation({
     summary: 'Listar actividades (paginado)',
@@ -249,12 +329,27 @@ export class ActivitiesController {
   })
   @ApiQuery({ name: 'page', required: false, example: 1 })
   @ApiQuery({ name: 'limit', required: false, example: 10 })
-  @ApiOkResponse({ description: 'Listado paginado.', type: ActivitiesPaginatedDto })
+  @ApiOkResponse({
+    description: 'Listado paginado.',
+    type: ActivitiesPaginatedDto,
+  })
   findAllWithPaginate(
     @Query('page') page: number = 1,
     @Query('limit') limit: number = 10,
   ) {
     return this.activitiesService.paginate({ page, limit }, null, {});
+  }
+
+  @BypassPermission()
+  @Get('search')
+  @ApiOperation({ summary: 'Buscar actividades por término' })
+  @ApiQuery({ name: 'searchTerm', required: true, example: 'título' })
+  @ApiOkResponse({ description: 'Resultados de búsqueda.' })
+  async search(
+    @Query('searchTerm') searchTerm: string,
+  ): Promise<{ data: any[] }> {
+    const data = await this.activitiesService.search(searchTerm);
+    return { data };
   }
 
   @Get(':id')
@@ -342,8 +437,18 @@ export class ActivitiesController {
     enum: ['reto', 'evento_personal', 'actividad_pares', 'otro'],
     example: 'reto',
   })
-  @ApiQuery({ name: 'page', required: false, description: 'Número de página', example: '1' })
-  @ApiQuery({ name: 'limit', required: false, description: 'Items por página', example: '10' })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    description: 'Número de página',
+    example: '1',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    description: 'Items por página',
+    example: '10',
+  })
   @ApiOkResponse({
     description: 'Lista de actividades del usuario',
     schema: {
@@ -431,5 +536,79 @@ export class ActivitiesController {
       activityId,
       responseDto,
     );
+  }
+
+  /**
+   * Obtiene las respuestas de los usuarios para una actividad específica.
+   * GET /api/activities/:id/responses
+   */
+  @BypassPermission()
+  @Get(':id/responses')
+  @ApiOperation({ summary: 'Obtener respuestas de usuarios a una actividad' })
+  @ApiParam({ name: 'id', description: 'ID de la actividad (MongoDB _id)' })
+  @ApiQuery({ name: 'page', required: false, example: '1' })
+  @ApiQuery({ name: 'limit', required: false, example: '10' })
+  @ApiQuery({
+    name: 'userId',
+    required: false,
+    description: 'Filtrar por usuario',
+  })
+  @ApiQuery({
+    name: 'dateFrom',
+    required: false,
+    description: 'Fecha inicio (ISO)',
+  })
+  @ApiQuery({ name: 'dateTo', required: false, description: 'Fecha fin (ISO)' })
+  @ApiOkResponse({ description: 'Listado paginado de respuestas.' })
+  async getActivityResponses(
+    @Param('id') id: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('userId') userId?: string,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string,
+  ) {
+    const pageNum = Number(page) || 1;
+    const limitNum = Number(limit) || 10;
+    return this.userResponseService.findByActivity(
+      id,
+      pageNum,
+      limitNum,
+      userId,
+      dateFrom,
+      dateTo,
+    );
+  }
+
+  /**
+   * Obtiene lista de usuarios que han respondido una actividad (para filtro).
+   * GET /api/activities/:id/response-users
+   */
+  @BypassPermission()
+  @Get(':id/response-users')
+  @ApiOperation({ summary: 'Obtener usuarios que respondieron una actividad' })
+  @ApiParam({ name: 'id', description: 'ID de la actividad (MongoDB _id)' })
+  @ApiOkResponse({ description: 'Lista de usuarios.' })
+  async getActivityResponseUsers(@Param('id') id: string) {
+    return this.userResponseService.findUsersByActivity(id);
+  }
+
+  /**
+   * Verifica si un usuario ya ha respondido una actividad.
+   * GET /api/activities/:id/check-response?userId=xxx
+   */
+  @BypassPermission()
+  @Get(':id/check-response')
+  @ApiOperation({
+    summary: 'Verificar si un usuario ya respondió una actividad',
+  })
+  @ApiParam({ name: 'id', description: 'ID de la actividad' })
+  @ApiQuery({ name: 'userId', required: true, description: 'ID del usuario' })
+  @ApiOkResponse({ description: 'Estado de la respuesta del usuario.' })
+  async checkUserResponse(
+    @Param('id') id: string,
+    @Query('userId') userId: string,
+  ) {
+    return this.userResponseService.checkUserResponse(userId, id);
   }
 }

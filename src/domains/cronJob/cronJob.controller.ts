@@ -75,7 +75,10 @@ export class CronJobController {
     description:
       'Ejecuta un respaldo de base de datos y genera una notificación de resultado.',
   })
-  @ApiOkResponse({ description: 'Resultado de ejecución.', type: CronJobExecutionResultDto })
+  @ApiOkResponse({
+    description: 'Resultado de ejecución.',
+    type: CronJobExecutionResultDto,
+  })
   executeBackup() {
     return this.cronJobService.executeBackup();
   }
@@ -85,7 +88,10 @@ export class CronJobController {
     summary: 'Ejecutar llamada API',
     description: 'Ejecuta una tarea tipo llamada API.',
   })
-  @ApiOkResponse({ description: 'Resultado de ejecución.', type: CronJobExecutionResultDto })
+  @ApiOkResponse({
+    description: 'Resultado de ejecución.',
+    type: CronJobExecutionResultDto,
+  })
   executeApiCall() {
     return this.cronJobService.executeApiCall();
   }

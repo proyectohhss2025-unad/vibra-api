@@ -5,6 +5,7 @@ import { MulterModule } from '@nestjs/platform-express';
 import { Feedback, FeedbackSchema } from './schemas/feedback.schema';
 import { FeedbackService } from './feedback.service';
 import { FeedbackController } from './feedback.controller';
+import { IdeasModule } from '../ideas/ideas.module';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
 import { AuthMiddleware } from 'src/infrastructure/auth/auth.middleware';
@@ -26,6 +27,7 @@ import { AuthMiddleware } from 'src/infrastructure/auth/auth.middleware';
         },
       }),
     }),
+    IdeasModule,
   ],
   controllers: [FeedbackController],
   providers: [FeedbackService],

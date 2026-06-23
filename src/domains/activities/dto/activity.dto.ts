@@ -100,8 +100,17 @@ class TipDto {
   message: string;
 
   @ApiPropertyOptional({
-    description: 'Categoría del tip (opcional). Si se define, solo se muestra en ese tipo de juego.',
-    enum: ['start', 'question', 'wordsearch', 'matching', 'emotionbox', 'dicegame', 'complete'],
+    description:
+      'Categoría del tip (opcional). Si se define, solo se muestra en ese tipo de juego.',
+    enum: [
+      'start',
+      'question',
+      'wordsearch',
+      'matching',
+      'emotionbox',
+      'dicegame',
+      'complete',
+    ],
   })
   @IsOptional()
   @IsString()
@@ -181,7 +190,11 @@ export class CreateActivityDto {
   @ApiPropertyOptional({
     description: 'Configuración de juegos incluidos en la actividad.',
     example: [
-      { type: 'WordSearch', config: { words: ['AMOR', 'PAZ'], gridSize: 9, timeLimit: 300 }, order: 1 },
+      {
+        type: 'WordSearch',
+        config: { words: ['AMOR', 'PAZ'], gridSize: 9, timeLimit: 300 },
+        order: 1,
+      },
     ],
   })
   @IsOptional()

@@ -34,4 +34,3 @@ export class CreateUserPermissionDto {
   @IsString()
   createdBy?: string;
 }
-

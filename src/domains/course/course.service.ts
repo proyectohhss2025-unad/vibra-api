@@ -24,7 +24,8 @@ export class CourseService {
     @InjectModel(Company.name) private companyModel: Model<Company>,
     @InjectModel(User.name) private userModel: Model<User>,
     @InjectModel(Participant.name) private participantModel: Model<Participant>,
-    @InjectModel(UserResponse.name) private userResponseModel: Model<UserResponse>,
+    @InjectModel(UserResponse.name)
+    private userResponseModel: Model<UserResponse>,
   ) {}
 
   /**
@@ -38,14 +39,25 @@ export class CourseService {
       .sort({ name: 1 })
       .lean()
       .exec();
-    return courses.map((c) => ({ _id: c._id.toString(), name: (c as any).name }));
+    return courses.map((c) => ({
+      _id: c._id.toString(),
+      name: (c as any).name,
+    }));
   }
 
   /**
    * Obtiene el progreso de todos los cursos activos.
    * Calcula el % de participantes que han completado al menos una actividad.
    */
-  async getProgress(): Promise<{ courseId: string; courseName: string; totalParticipants: number; activeParticipants: number; progressPercent: number }[]> {
+  async getProgress(): Promise<
+    {
+      courseId: string;
+      courseName: string;
+      totalParticipants: number;
+      activeParticipants: number;
+      progressPercent: number;
+    }[]
+  > {
     this.logger.log('Fetching course progress...');
 
     const courses = await this.courseModel
@@ -78,9 +90,10 @@ export class CourseService {
             .then((users) => users.length);
         }
 
-        const progressPercent = totalParticipants > 0
-          ? Math.round((activeParticipants / totalParticipants) * 100)
-          : 0;
+        const progressPercent =
+          totalParticipants > 0
+            ? Math.round((activeParticipants / totalParticipants) * 100)
+            : 0;
 
         return {
           courseId: course._id.toString(),
@@ -141,28 +154,44 @@ export class CourseService {
     if (courses.length === 0) return [];
 
     // Colectar IDs únicos
-    const companyIds = [...new Set(courses.map(c => c.companyId).filter(Boolean))];
-    const instructorIds = [...new Set(courses.map(c => c.instructorId).filter(Boolean))];
+    const companyIds = [
+      ...new Set(courses.map((c) => c.companyId).filter(Boolean)),
+    ];
+    const instructorIds = [
+      ...new Set(courses.map((c) => c.instructorId).filter(Boolean)),
+    ];
 
     // Buscar empresas e instructors en batch con campos extendidos
     const [companies, instructors] = await Promise.all([
       companyIds.length > 0
-        ? this.companyModel.find({ _id: { $in: companyIds } }).select('_id name nit email').exec()
+        ? this.companyModel
+            .find({ _id: { $in: companyIds } })
+            .select('_id name nit email')
+            .exec()
         : Promise.resolve([]),
       instructorIds.length > 0
-        ? this.userModel.find({ _id: { $in: instructorIds } }).select('_id name email documentNumber').exec()
+        ? this.userModel
+            .find({ _id: { $in: instructorIds } })
+            .select('_id name email documentNumber')
+            .exec()
         : Promise.resolve([]),
     ]);
 
     // Crear mapas de lookup con datos completos
-    const companyMap = new Map(companies.map(c => [c._id.toString(), c]));
-    const instructorMap = new Map(instructors.map(u => [u._id.toString(), u]));
+    const companyMap = new Map(companies.map((c) => [c._id.toString(), c]));
+    const instructorMap = new Map(
+      instructors.map((u) => [u._id.toString(), u]),
+    );
 
     // Mapear los nombres al resultado
-    return courses.map(course => {
+    return courses.map((course) => {
       const courseObj = course.toObject();
-      const company = course.companyId ? companyMap.get(course.companyId) : null;
-      const instructor = course.instructorId ? instructorMap.get(course.instructorId) : null;
+      const company = course.companyId
+        ? companyMap.get(course.companyId)
+        : null;
+      const instructor = course.instructorId
+        ? instructorMap.get(course.instructorId)
+        : null;
       return {
         ...courseObj,
         companyName: company?.name || null,
@@ -250,7 +279,10 @@ export class CourseService {
 
       const courseWithNames = await this.resolveSingleName(course);
 
-      return { message: 'Curso encontrado exitosamente', course: courseWithNames };
+      return {
+        message: 'Curso encontrado exitosamente',
+        course: courseWithNames,
+      };
     } catch (error) {
       if (error instanceof NotFoundException) {
         throw error;
@@ -293,10 +325,16 @@ export class CourseService {
       this.logger.log(`Curso con ID ${id} actualizado exitosamente`);
       return { message: 'Curso actualizado exitosamente', course };
     } catch (error) {
-      if (error instanceof NotFoundException || error instanceof BadRequestException) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException
+      ) {
         throw error;
       }
-      this.logger.error(`Error al actualizar el curso con ID ${id}`, error.stack);
+      this.logger.error(
+        `Error al actualizar el curso con ID ${id}`,
+        error.stack,
+      );
       throw new InternalServerErrorException('Error al actualizar el curso');
     }
   }
@@ -360,5 +398,23 @@ export class CourseService {
         'Error al obtener los cursos de la compañía',
       );
     }
+  }
+
+  async search(searchTerm: string): Promise<Partial<Course>[]> {
+    if (!searchTerm || searchTerm === 'all') {
+      return this.courseModel.find().limit(20).sort({ createdAt: -1 }).exec();
+    }
+    const regex = new RegExp(searchTerm, 'i');
+    return this.courseModel
+      .find({
+        $or: [
+          { name: { $regex: regex } },
+          { description: { $regex: regex } },
+          { category: { $regex: regex } },
+        ],
+      })
+      .limit(20)
+      .sort({ createdAt: -1 })
+      .exec();
   }
 }

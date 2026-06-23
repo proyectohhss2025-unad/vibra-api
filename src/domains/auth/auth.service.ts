@@ -2,7 +2,7 @@ import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { JwtService } from '@nestjs/jwt';
 import { Model, Types } from 'mongoose';
-import * as bcrypt from 'bcrypt';
+import * as bcrypt from 'bcryptjs';
 import { AppGateway } from 'src/infrastructure/sockets/appGateway.gateway';
 import { User } from '../users/schemas/user.schema';
 import { UsersService } from '../users/users.service';
@@ -255,7 +255,10 @@ export class AuthService {
         }
       }
     } catch (error) {
-      this.logger.error(`Error resolviendo permisos para usuario ${userId}:`, error);
+      this.logger.error(
+        `Error resolviendo permisos para usuario ${userId}:`,
+        error,
+      );
       // Devolver estructura vacía pero válida
       return {
         isSuperAdmin: false,

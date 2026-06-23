@@ -39,15 +39,27 @@ export class AuditLogService {
   }
 
   /**
-   * get all records of audit log
+   * get all records of audit log with pagination
    *
-   * @returns AuditLog[]
+   * @param page Page number (default 1)
+   * @param limit Items per page (default 50)
+   * @returns { data: AuditLog[], total: number }
    */
-  async getAuditLog(): Promise<AuditLog[]> {
-    return this.auditLogModel
+  async getAuditLog(
+    page = 1,
+    limit = 50,
+  ): Promise<{ data: AuditLog[]; total: number }> {
+    const skip = (page - 1) * limit;
+    const data = await this.auditLogModel
       .find({ isActive: true, deleted: false })
       .sort({ timestamp: -1 })
+      .skip(skip)
+      .limit(limit)
       .exec();
+    const total = await this.auditLogModel
+      .countDocuments({ isActive: true, deleted: false })
+      .exec();
+    return { data, total };
   }
 
   /**

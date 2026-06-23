@@ -17,6 +17,7 @@ import {
   ApiTags,
   ApiOperation,
   ApiBody,
+  ApiOkResponse,
   ApiResponse,
   ApiParam,
   ApiQuery,
@@ -109,10 +110,28 @@ export class CourseController {
   @Get()
   @BypassPermission()
   @ApiOperation({ summary: 'Listar todos los cursos' })
-  @ApiQuery({ name: 'companyId', required: false, description: 'Filtrar por ID de compañía' })
-  @ApiQuery({ name: 'status', required: false, description: 'Filtrar por estado (true/false)' })
-  @ApiQuery({ name: 'page', required: false, description: 'Número de página', example: '1' })
-  @ApiQuery({ name: 'rows', required: false, description: 'Filas por página', example: '10' })
+  @ApiQuery({
+    name: 'companyId',
+    required: false,
+    description: 'Filtrar por ID de compañía',
+  })
+  @ApiQuery({
+    name: 'status',
+    required: false,
+    description: 'Filtrar por estado (true/false)',
+  })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    description: 'Número de página',
+    example: '1',
+  })
+  @ApiQuery({
+    name: 'rows',
+    required: false,
+    description: 'Filas por página',
+    example: '10',
+  })
   @ApiResponse({
     status: 200,
     description: 'Lista de cursos obtenida exitosamente',
@@ -130,6 +149,18 @@ export class CourseController {
       page: page ? Number.parseInt(page) : 1,
       rows: rows ? Number.parseInt(rows) : 10,
     });
+  }
+
+  @BypassPermission()
+  @Get('search')
+  @ApiOperation({ summary: 'Buscar por término' })
+  @ApiQuery({ name: 'searchTerm', required: true })
+  @ApiOkResponse({ description: 'Resultados de búsqueda.' })
+  async search(
+    @Query('searchTerm') searchTerm: string,
+  ): Promise<{ data: any[] }> {
+    const data = await this.courseService.search(searchTerm);
+    return { data };
   }
 
   /**

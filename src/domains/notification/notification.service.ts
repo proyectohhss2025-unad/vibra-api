@@ -26,7 +26,7 @@ export class NotificationService {
     @InjectModel(NotificationChannel.name)
     private notificationChannelModel: Model<NotificationChannel>,
     @InjectModel(User.name) private userModel: Model<User>,
-  ) { }
+  ) {}
 
   async create(createNotificationDto: CreateNotificationDto) {
     const createdNotification = new this.notificationModel(
@@ -188,8 +188,6 @@ export class NotificationService {
 
     return { notifications, length: count };
   }
-
-
 
   async getAllByTitle(title: string, isRead: boolean, query: any) {
     return this.notificationModel

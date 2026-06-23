@@ -23,6 +23,7 @@ import {
   ApiPropertyOptional,
   ApiQuery,
 } from '@nestjs/swagger';
+import { BypassPermission } from 'src/infrastructure/auth/bypass-permission.decorator';
 
 class PolicyDto {
   @ApiProperty()
@@ -72,12 +73,27 @@ export class PoliciesController {
   @ApiOperation({ summary: 'Listar políticas (paginado)' })
   @ApiQuery({ name: 'page', required: false, example: 1 })
   @ApiQuery({ name: 'limit', required: false, example: 12 })
-  @ApiOkResponse({ description: 'Listado de políticas.', type: PoliciesListDto })
+  @ApiOkResponse({
+    description: 'Listado de políticas.',
+    type: PoliciesListDto,
+  })
   async getAllPolicies(
     @Query('page') page?: number,
     @Query('limit') limit?: number,
   ) {
     return this.policiesService.getAllPolicies(page ?? 1, limit ?? 12);
+  }
+
+  @BypassPermission()
+  @Get('search')
+  @ApiOperation({ summary: 'Buscar por término' })
+  @ApiQuery({ name: 'searchTerm', required: true })
+  @ApiOkResponse({ description: 'Resultados de búsqueda.' })
+  async search(
+    @Query('searchTerm') searchTerm: string,
+  ): Promise<{ data: any[] }> {
+    const data = await this.policiesService.search(searchTerm);
+    return { data };
   }
 
   @Get(':id')
@@ -165,7 +181,10 @@ export class PoliciesController {
   @Get('user/:userId/pending')
   @ApiOperation({ summary: 'Listar políticas pendientes por usuario' })
   @ApiParam({ name: 'userId', description: 'ID del usuario.' })
-  @ApiOkResponse({ description: 'Listado de políticas pendientes.', type: PoliciesListDto })
+  @ApiOkResponse({
+    description: 'Listado de políticas pendientes.',
+    type: PoliciesListDto,
+  })
   async getUserPendingPolicies(@Param('userId') userId: string) {
     return this.policiesService.getUserPendingPolicies(userId);
   }
@@ -174,7 +193,10 @@ export class PoliciesController {
   @ApiOperation({ summary: 'Verificar aceptación de una política' })
   @ApiParam({ name: 'userId', description: 'ID del usuario.' })
   @ApiParam({ name: 'policyId', description: 'ID de la política.' })
-  @ApiOkResponse({ description: 'Resultado de verificación.', schema: { type: 'object' } })
+  @ApiOkResponse({
+    description: 'Resultado de verificación.',
+    schema: { type: 'object' },
+  })
   async checkPolicyAcceptance(
     @Param('userId') userId: string,
     @Param('policyId') policyId: string,

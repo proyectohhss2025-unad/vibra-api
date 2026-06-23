@@ -6,6 +6,7 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
+  Matches,
 } from 'class-validator';
 
 export class UpdateUserDto {
@@ -26,12 +27,28 @@ export class UpdateUserDto {
   name?: string;
 
   @ApiPropertyOptional({
+    description: 'Nombre de usuario único para iniciar sesión.',
+    example: 'maya',
+  })
+  @IsOptional()
+  @IsString()
+  username?: string;
+
+  @ApiPropertyOptional({
     description: 'Correo electrónico del usuario.',
     example: 'maya@vibra.local',
   })
   @IsOptional()
   @IsEmail()
   email?: string;
+
+  @ApiPropertyOptional({
+    description: 'Número de documento del usuario.',
+    example: '6803296',
+  })
+  @IsOptional()
+  @IsString()
+  documentNumber?: string;
 
   @ApiPropertyOptional({
     description: 'Tipo de documento del usuario.',
@@ -59,7 +76,7 @@ export class UpdateUserDto {
 
   @ApiPropertyOptional({
     description:
-      'Nueva contraseña del usuario (se almacena con hash). Si no se envía, no se modifica.',
+      'Nueva contraseña del usuario. Si no se envía, no se modifica. La validación de fortaleza se hace en la creación.',
     example: 'Vibra@2026!',
   })
   @IsOptional()
@@ -122,4 +139,3 @@ export class UpdateUserDto {
   @IsBoolean()
   isActive?: boolean;
 }
-

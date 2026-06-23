@@ -1,11 +1,4 @@
-import {
-  Body,
-  Controller,
-  Get,
-  Param,
-  Post,
-  Query,
-} from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiBody,
@@ -42,7 +35,8 @@ export class ActivityCompletionsController {
   @Get('participant/:participantId')
   @ApiOperation({
     summary: 'Historial de completaciones de un participante',
-    description: 'Obtiene las actividades completadas por un participante con paginación.',
+    description:
+      'Obtiene las actividades completadas por un participante con paginación.',
   })
   @ApiParam({ name: 'participantId', description: 'ID del participante' })
   @ApiQuery({ name: 'page', required: false, example: 1 })
@@ -75,7 +69,8 @@ export class ActivityCompletionsController {
   @Get('today-count')
   @ApiOperation({
     summary: 'Completaciones de hoy',
-    description: 'Retorna el número de actividades completadas en el día de hoy.',
+    description:
+      'Retorna el número de actividades completadas en el día de hoy.',
   })
   @ApiOkResponse({
     schema: {
@@ -93,7 +88,8 @@ export class ActivityCompletionsController {
   @Get('ranking')
   @ApiOperation({
     summary: 'Ranking global de participantes',
-    description: 'Retorna el ranking de participantes ordenados por puntaje acumulado.',
+    description:
+      'Retorna el ranking de participantes ordenados por puntaje acumulado.',
   })
   @ApiQuery({ name: 'limit', required: false, example: 20 })
   @ApiOkResponse({ description: 'Ranking global.' })

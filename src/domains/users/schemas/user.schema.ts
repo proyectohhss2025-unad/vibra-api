@@ -4,7 +4,29 @@ import { Role } from 'src/domains/roles/schemas/role.schema';
 import { Company } from 'src/domains/company/schemas/company.schema';
 import { DocumentType } from 'src/domains/documentType/schemas/documentType.model';
 import { Gender } from 'src/utils/enum';
+import { AvatarGalleryItemTypeEnum } from '../dto/avatar-gallery.dto';
 
+// ─── Sub-schema para items de la galería de avatar ────────────────────────
+// Usamos el enum del DTO como fuente única de verdad para los tipos de avatar.
+export class AvatarGalleryItem {
+  @Prop({ required: true })
+  id: string;
+
+  @Prop({ required: true, enum: Object.values(AvatarGalleryItemTypeEnum) })
+  type: AvatarGalleryItemTypeEnum;
+
+  @Prop({ required: true })
+  src: string;
+
+  @Prop({ default: '' })
+  label: string;
+
+  @Prop({ default: Date.now })
+  addedAt: Date;
+}
+
+export const AvatarGalleryItemSchema =
+  SchemaFactory.createForClass(AvatarGalleryItem);
 
 @Schema({ timestamps: true })
 export class User extends Document {
@@ -20,7 +42,11 @@ export class User extends Document {
   @Prop({ required: true, unique: true })
   documentNumber: string;
 
-  @Prop({ required: false, type: MongooseSchema.Types.ObjectId, ref: "DocumentType" })
+  @Prop({
+    required: false,
+    type: MongooseSchema.Types.ObjectId,
+    ref: 'DocumentType',
+  })
   documentType: Types.ObjectId | DocumentType;
 
   @Prop({ type: String })
@@ -53,6 +79,9 @@ export class User extends Document {
 
   @Prop({ required: true })
   avatar: string;
+
+  @Prop({ type: [AvatarGalleryItemSchema], default: [] })
+  avatarGallery: AvatarGalleryItem[];
 
   @Prop({ type: String, enum: Gender, default: Gender.MALE })
   gender: string;

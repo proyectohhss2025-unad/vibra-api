@@ -3,7 +3,13 @@ import { Document, HydratedDocument, Types } from 'mongoose';
 
 export type ParticipantDocument = HydratedDocument<Participant>;
 
-export const PARTICIPANT_LEVELS = ['bronce', 'plata', 'oro', 'platino', 'diamante'] as const;
+export const PARTICIPANT_LEVELS = [
+  'bronce',
+  'plata',
+  'oro',
+  'platino',
+  'diamante',
+] as const;
 export type ParticipantLevel = (typeof PARTICIPANT_LEVELS)[number];
 
 export function calculateLevel(points: number): ParticipantLevel {

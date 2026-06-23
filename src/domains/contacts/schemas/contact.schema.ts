@@ -1,7 +1,12 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document } from 'mongoose';
 
-export type ContactStatus = 'unread' | 'read' | 'in_progress' | 'resolved' | 'spam';
+export type ContactStatus =
+  | 'unread'
+  | 'read'
+  | 'in_progress'
+  | 'resolved'
+  | 'spam';
 
 @Schema({ timestamps: true })
 export class Contact extends Document {

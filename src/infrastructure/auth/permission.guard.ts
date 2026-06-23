@@ -43,19 +43,21 @@ export class PermissionGuard implements CanActivate {
     const method = request.method;
     const url = request.originalUrl || request.url;
 
-    // Verificar si el método tiene @BypassPermission (se salta verificación)
+    // Verificar si el método tiene @BypassPermission (se salta verificación de permisos)
     const bypassPermission = this.reflector.getAllAndOverride<boolean>(
       BYPASS_PERMISSION_KEY,
       [context.getHandler(), context.getClass()],
     );
 
+    // Intentar extraer y validar el JWT (SIEMPRE, incluso si hay bypassPermission)
+    // Esto asegura que req.user esté poblado para endpoints como avatar/gallery
+    // que necesitan el userId del token aunque no requieran permiso específico.
+    const userId = await this.tryAuthenticate(request);
+
     if (bypassPermission) {
       this.logger.debug(`BYPASS ${method} ${url} (skip permission check)`);
       return true;
     }
-
-    // Intentar extraer y validar el JWT
-    const userId = await this.tryAuthenticate(request);
 
     // Si el endpoint no requiere permiso, dejar pasar
     if (!requiredSerial) {
@@ -103,7 +105,10 @@ export class PermissionGuard implements CanActivate {
       this.logger.debug(`PERMISSION OK ${method} ${url}`);
       return true;
     } catch (error) {
-      if (error instanceof ForbiddenException || error instanceof UnauthorizedException) {
+      if (
+        error instanceof ForbiddenException ||
+        error instanceof UnauthorizedException
+      ) {
         throw error;
       }
       this.logger.error(
@@ -122,8 +127,7 @@ export class PermissionGuard implements CanActivate {
   private async tryAuthenticate(request: any): Promise<string | null> {
     const authHeader: string | undefined =
       request.headers['authorization'] || request.headers['Authorization'];
-    const xAccessToken: string | undefined =
-      request.headers['x-access-token'];
+    const xAccessToken: string | undefined = request.headers['x-access-token'];
 
     // Log para depuración
     this.logger.debug(

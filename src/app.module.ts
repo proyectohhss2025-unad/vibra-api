@@ -32,6 +32,7 @@ import { LoggerModule } from './helpers/logger/logger.module';
 import { EmailModule } from './infrastructure/emails/email.module';
 import { ExceptionsModule } from './infrastructure/exceptions/exceptions.module';
 import { FileUploadModule } from './infrastructure/file-upload/file-upload.module';
+import { ImageCompressionModule } from './infrastructure/image-compression/image-compression.module';
 import { AppGateway } from './infrastructure/sockets/appGateway.gateway';
 import { EventsGateway } from './infrastructure/sockets/events.gateway';
 import { ThrottlerGuard } from './infrastructure/throttler/throttler.guard';
@@ -44,6 +45,10 @@ import { PushNotificationsModule } from './domains/push-notifications/push-notif
 import { ContactsModule } from './domains/contacts/contacts.module';
 import { IdeasModule } from './domains/ideas/ideas.module';
 import { BackupModule } from './infrastructure/backup/backup.module';
+import { AdminModule } from './domains/admin/admin.module';
+import { MongoDBAdminModule } from './domains/mongodbAdmin/mongodbAdmin.module';
+import { ReportsModule } from './domains/reports/reports.module';
+import { SecurityModule } from './infrastructure/security/security.module';
 
 @Module({
   imports: [
@@ -56,10 +61,16 @@ import { BackupModule } from './infrastructure/backup/backup.module';
       envFilePath: '.env',
     }),
     MongooseModule.forRoot(process.env.MONGO_URI),
-    ServeStaticModule.forRoot({
-      rootPath: path.join(process.cwd(), 'uploads', 'productos'),
-      serveRoot: '/uploads/productos',
-    }),
+    ServeStaticModule.forRoot(
+      {
+        rootPath: path.join(process.cwd(), 'uploads', 'productos'),
+        serveRoot: '/uploads/productos',
+      },
+      {
+        rootPath: path.join(process.cwd(), 'public', 'avatars'),
+        serveRoot: '/avatars',
+      },
+    ),
     AuditLogModule,
     CompanyModule,
     CronJobModule,
@@ -82,6 +93,8 @@ import { BackupModule } from './infrastructure/backup/backup.module';
     PermissionsModule,
     PermissionCategoryModule,
     FileUploadModule,
+    ImageCompressionModule,
+    SecurityModule,
     RankingModule,
     SchedulingModule,
     AppThrottlerModule,
@@ -95,6 +108,9 @@ import { BackupModule } from './infrastructure/backup/backup.module';
     ContactsModule,
     IdeasModule,
     BackupModule,
+    AdminModule,
+    MongoDBAdminModule,
+    ReportsModule,
   ],
   providers: [
     EventsGateway,
@@ -109,4 +125,4 @@ import { BackupModule } from './infrastructure/backup/backup.module';
     },
   ],
 })
-export class AppModule { }
+export class AppModule {}

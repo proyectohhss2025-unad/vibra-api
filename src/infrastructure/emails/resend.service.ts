@@ -33,9 +33,14 @@ export class ResendService {
       return;
     }
 
-    const appUrl = this.configService.get<string>('VIBRA_APP_URL') || 'https://vibraunad.com.co';
-    const fromEmail = this.configService.get<string>('RESEND_FROM_EMAIL') || 'no-reply@vibraunad.com.co';
-    const fromName = this.configService.get<string>('RESEND_FROM_NAME') || 'Vibra';
+    const appUrl =
+      this.configService.get<string>('VIBRA_APP_URL') ||
+      'https://vibraunad.com.co';
+    const fromEmail =
+      this.configService.get<string>('RESEND_FROM_EMAIL') ||
+      'no-reply@vibraunad.com.co';
+    const fromName =
+      this.configService.get<string>('RESEND_FROM_NAME') || 'Vibra';
 
     const resetUrl = `${appUrl}/reset-password?token=${token}`;
 
@@ -48,10 +53,15 @@ export class ResendService {
         html: this.getResetEmailTemplate(resetUrl),
       })
       .then((result) => {
-        this.logger.log(`Correo enviado exitosamente a ${email}: ${JSON.stringify(result)}`);
+        this.logger.log(
+          `Correo enviado exitosamente a ${email}: ${JSON.stringify(result)}`,
+        );
       })
       .catch((err) => {
-        this.logger.error(`Error al enviar correo a ${email}: ${err.message}`, err.stack);
+        this.logger.error(
+          `Error al enviar correo a ${email}: ${err.message}`,
+          err.stack,
+        );
       });
   }
 

@@ -33,7 +33,9 @@ export class PasswordResetService {
     try {
       const user = await this.usersService.findByOne({ email });
       if (!user) {
-        this.logger.log(`Email ${email} no encontrado en BD (respuesta genérica)`);
+        this.logger.log(
+          `Email ${email} no encontrado en BD (respuesta genérica)`,
+        );
         return { message: genericMessage };
       }
 
@@ -47,7 +49,9 @@ export class PasswordResetService {
         )
         .exec();
       if (invalidated.modifiedCount > 0) {
-        this.logger.log(`Tokens previos invalidados: ${invalidated.modifiedCount}`);
+        this.logger.log(
+          `Tokens previos invalidados: ${invalidated.modifiedCount}`,
+        );
       }
 
       // Generar token JWT
@@ -76,12 +80,17 @@ export class PasswordResetService {
         usedAt: null,
       });
 
-      this.logger.log(`Token de reset creado para ${email} (expira: ${expiresAt.toISOString()})`);
+      this.logger.log(
+        `Token de reset creado para ${email} (expira: ${expiresAt.toISOString()})`,
+      );
 
       // Enviar email (fire & forget — no bloquea la respuesta)
       await this.sendResetEmail(email, rawToken);
     } catch (error) {
-      this.logger.error(`Error en forgotPassword para ${email}: ${error.message}`, error.stack);
+      this.logger.error(
+        `Error en forgotPassword para ${email}: ${error.message}`,
+        error.stack,
+      );
     }
 
     return { message: genericMessage };
@@ -90,7 +99,9 @@ export class PasswordResetService {
   /**
    * Valida si un token de restablecimiento sigue vigente.
    */
-  async validateToken(token: string): Promise<{ valid: boolean; email?: string }> {
+  async validateToken(
+    token: string,
+  ): Promise<{ valid: boolean; email?: string }> {
     try {
       const payload = this.jwtService.verify(token, {
         secret: this.configService.get<string>('JWT_SECRET'),

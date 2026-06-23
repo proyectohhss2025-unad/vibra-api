@@ -15,7 +15,10 @@ export class PermissionsService {
   }
 
   async findOne(id: string): Promise<Permission> {
-    return this.permissionModel.findById(id).populate('permissionCategory').exec();
+    return this.permissionModel
+      .findById(id)
+      .populate('permissionCategory')
+      .exec();
   }
 
   async create(permission: Partial<Permission>): Promise<Permission> {
@@ -34,5 +37,28 @@ export class PermissionsService {
 
   async remove(id: string): Promise<Permission> {
     return this.permissionModel.findByIdAndDelete(id).exec();
+  }
+
+  async search(searchTerm: string): Promise<Partial<Permission>[]> {
+    if (!searchTerm || searchTerm === 'all') {
+      return this.permissionModel
+        .find()
+        .limit(20)
+        .sort({ createdAt: -1 })
+        .exec();
+    }
+    const regex = new RegExp(searchTerm, 'i');
+    return this.permissionModel
+      .find({
+        $or: [
+          { name: { $regex: regex } },
+          { description: { $regex: regex } },
+          { serial: { $regex: regex } },
+          { event: { $regex: regex } },
+        ],
+      })
+      .limit(20)
+      .sort({ createdAt: -1 })
+      .exec();
   }
 }

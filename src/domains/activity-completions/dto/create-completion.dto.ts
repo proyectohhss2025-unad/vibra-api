@@ -1,9 +1,18 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsArray, IsMongoId, IsNumber, IsOptional, Min, ValidateNested } from 'class-validator';
+import {
+  IsArray,
+  IsMongoId,
+  IsNumber,
+  IsOptional,
+  Min,
+  ValidateNested,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 
 class GameCompletionDto {
-  @ApiProperty({ enum: ['WordSearch', 'MatchingConcepts', 'DiceGame', 'EmotionBox'] })
+  @ApiProperty({
+    enum: ['WordSearch', 'MatchingConcepts', 'DiceGame', 'EmotionBox'],
+  })
   type: string;
 
   @ApiProperty({ example: 80 })
@@ -36,7 +45,10 @@ export class CreateCompletionDto {
   @Min(0)
   achievedScore: number;
 
-  @ApiPropertyOptional({ example: 360, description: 'Tiempo total en segundos' })
+  @ApiPropertyOptional({
+    example: 360,
+    description: 'Tiempo total en segundos',
+  })
   @IsOptional()
   @IsNumber()
   @Min(0)

@@ -80,7 +80,9 @@ export class BackupService {
         hasAuth: this.backupConfig.hasAuth,
       });
 
-      this.logger.log(`Ejecutando backup: mongodump --host ${cfg.mongoHost} --port ${cfg.mongoPort} --db ${cfg.database} --out ${backupPath}`);
+      this.logger.log(
+        `Ejecutando backup: mongodump --host ${cfg.mongoHost} --port ${cfg.mongoPort} --db ${cfg.database} --out ${backupPath}`,
+      );
 
       await execAsync(dumpCommand);
 
@@ -94,7 +96,9 @@ export class BackupService {
       this.logger.log(`Backup completado: ${backupPath}`);
       return { success: true, message, path: backupPath };
     } catch (error) {
-      this.logger.error(`Error generando la copia de seguridad: ${error.message}`);
+      this.logger.error(
+        `Error generando la copia de seguridad: ${error.message}`,
+      );
       throw new Error(`Error generating backup: ${error.message}`);
     }
   }

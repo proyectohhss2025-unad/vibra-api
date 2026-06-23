@@ -1,4 +1,12 @@
-import { Body, Controller, Get, Param, Post, Query, Delete } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Query,
+  Delete,
+} from '@nestjs/common';
 import {
   ApiBody,
   ApiCreatedResponse,
@@ -50,7 +58,7 @@ class DocumentTypeDto {
 @ApiTags('Document Types')
 @Controller('api/document-types')
 export class DocumentTypeController {
-  constructor(private readonly documentTypeService: DocumentTypeService) { }
+  constructor(private readonly documentTypeService: DocumentTypeService) {}
 
   @Post('create')
   @ApiOperation({
@@ -72,7 +80,8 @@ export class DocumentTypeController {
   @Post()
   @ApiOperation({
     summary: 'Actualizar un tipo de documento',
-    description: 'Actualiza los datos de un tipo de documento existente por su _id.',
+    description:
+      'Actualiza los datos de un tipo de documento existente por su _id.',
   })
   @ApiBody({
     type: UpdateDocumentTypeDto,
@@ -123,7 +132,8 @@ export class DocumentTypeController {
   @Get(':id')
   @ApiOperation({
     summary: 'Consultar por ID',
-    description: 'Obtiene el detalle de un tipo de documento por su identificador único.',
+    description:
+      'Obtiene el detalle de un tipo de documento por su identificador único.',
   })
   @ApiParam({
     name: 'id',
@@ -172,4 +182,3 @@ export class DocumentTypeController {
     return this.documentTypeService.remove(id, deletedBy);
   }
 }
-

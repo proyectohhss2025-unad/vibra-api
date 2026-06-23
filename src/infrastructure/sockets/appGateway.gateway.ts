@@ -8,7 +8,19 @@ import {
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { RankingService } from 'src/domains/rankings/ranking.service';
-import { UsersService } from 'src/domains/users/users.service';
+
+/** Datos completos de un usuario conectado al socket */
+export interface ConnectedUser {
+  socketId: string;
+  userId: string;
+  username: string;
+  name: string;
+  email: string;
+  avatar: string;
+  role: { _id: string; name: string } | null;
+  platform: 'web' | 'mobile';
+  connectedAt: Date;
+}
 
 @WebSocketGateway({ cors: true })
 export class AppGateway
@@ -17,119 +29,69 @@ export class AppGateway
   @WebSocketServer()
   server: Server;
 
-  // Mapa para almacenar los usuarios conectados
-  private connectedUsers: Map<string, { id: string; username: string }> =
-    new Map();
+  // Mapa para almacenar los usuarios conectados (key = socketId)
+  private connectedUsers: Map<string, ConnectedUser> = new Map();
 
-  constructor(
-    private readonly rankingService: RankingService,
-    private readonly userService: UsersService,
-  ) {}
+  constructor(private readonly rankingService: RankingService) {}
 
-  /**
-   * This method is called after the gateway has been initialized.
-   * It sets up an interval to fetch live rankings every 5 seconds and emit them to all connected clients.
-   * @param server The server instance.
-   * @returns void
-   * @memberof AppGateway
-   * @example
-   * appGateway.afterInit(server);
-   * */
   afterInit(server: Server) {
-    // Emitir rankings cada 5 segundos
-    /*setInterval(async () => {
-      const rankings = await this.rankingService.getLiveRankings();
-      server.emit('rankingsUpdate', rankings);
-    }, 20000);*/
-    // Emitir lista de usuarios conectados cada 10 segundos
-    /* setInterval(() => {
-      this.sendActiveUsers();
-    }, 10000); */
+    // No se requiere inicialización adicional
   }
 
   /**
-   * Este método se llama cuando un participante se conecta al gateway.
-   * @param client La instancia del participante.
-   * @returns void
-   * @memberof AppGateway
+   * Se llama cuando un socket se conecta al gateway.
+   * Agrega una entrada temporal en el mapa y emite la lista actual.
+   * @param client La instancia del socket conectado.
    */
   async handleConnection(client: Socket) {
-    console.log(`Participante data conectado: ${JSON.stringify(client.data)}`);
-    // Cuando un participante se conecta, esperamos que se identifique
-    this.connectedUsers.set(client.id, { id: client.id, username: '' });
+    console.log(`Socket conectado: ${client.id}`);
 
-    const users = Array.from(this.connectedUsers.values());
+    // Registrar entrada temporal hasta que el cliente se identifique
+    const tempUser: ConnectedUser = {
+      socketId: client.id,
+      userId: '',
+      username: '',
+      name: 'Conectando...',
+      email: '',
+      avatar: 'default-avatar.svg',
+      role: null,
+      platform: 'web',
+      connectedAt: new Date(),
+    };
+    this.connectedUsers.set(client.id, tempUser);
 
-    const listUsers: any[] = await this.userService.findAll();
-
-    const activeUsers = listUsers.filter((user) => user.isLogged);
-
-    this.server.emit('users-update', activeUsers);
-    //client.emit('server-status', { id: client.id });
-    // Emitir la lista actual de usuarios conectados
-    // Emitimos directamente al participante que se acaba de conectar
-    //client.emit('connection-established', { id: client.id });
-    // Emitimos a todos los usuarios la lista actualizada
-    //this.emitUsersUpdate();
-    // También enviamos la lista de usuarios activos
-    //this.sendActiveUsers();
+    // Emitir la lista actualizada a todos
+    this.sendActiveUsers();
   }
 
   /**
-   * Este método se llama cuando un participante se desconecta del gateway.
-   * Elimina al usuario de la lista de conectados y emite la actualización.
-   * @param client La instancia del participante.
-   * @returns void
-   * @memberof AppGateway
+   * Se llama cuando un socket se desconecta del gateway.
+   * Elimina al usuario del mapa y emite la actualización.
+   * @param client La instancia del socket desconectado.
    */
   handleDisconnect(client: Socket) {
-    // Eliminar usuario del mapa cuando se desconecta
+    const user = this.connectedUsers.get(client.id);
+    const userName = user?.name || client.id;
     if (this.connectedUsers.has(client.id)) {
       this.connectedUsers.delete(client.id);
-      this.emitUsersUpdate();
-      console.log(`Participante desconectado: ${client.id}`);
+      this.sendActiveUsers();
+      console.log(`Usuario desconectado: ${userName} (socket: ${client.id})`);
     }
   }
 
   /**
-   * Este método emite la lista actualizada de usuarios conectados a todos los usuarios.
-   * @returns void
-   * @memberof AppGateway
-   */
-  /**
-   * Este método emite la lista actualizada de usuarios conectados a todos los usuarios.
-   * @returns void
-   * @memberof AppGateway
-   */
-  private async emitUsersUpdate() {
-    const users = Array.from(this.connectedUsers.values());
-
-    const listUsers: any[] = await this.userService.findAll();
-
-    const activeUsers = listUsers.filter((user) => user.isLogged);
-
-    this.server.emit('users-update', activeUsers);
-  }
-
-  /**
-   * Este método obtiene y emite la lista de usuarios activos a todos los usuarios conectados.
-   * Puede ser llamado periódicamente o manualmente para forzar una actualización.
-   * @returns void
-   * @memberof AppGateway
+   * Emite la lista actual de usuarios conectados (desde el mapa, sin consultar DB)
+   * a todos los sockets conectados.
    */
   public sendActiveUsers() {
-    const users = Array.from(this.connectedUsers.values());
-
-    console.log(
-      `Emitiendo actualización de usuarios: ${users.length} usuarios conectados`,
+    const users = Array.from(this.connectedUsers.values()).filter(
+      (u) => u.userId !== '', // solo usuarios identificados
     );
 
-    // Verificamos que el servidor esté inicializado antes de emitir
-    if (this.server) {
-      // Emitimos el evento con la lista de usuarios
-      this.server.emit('users-update', users);
+    console.log(`Emitiendo actualización: ${users.length} usuarios conectados`);
 
-      // También emitimos un evento de estado para confirmar que el servidor está activo
+    if (this.server) {
+      this.server.emit('users-update', users);
       this.server.emit('server-status', {
         active: true,
         connectedUsers: users.length,
@@ -140,10 +102,7 @@ export class AppGateway
   }
 
   /**
-   * Este método maneja la solicitud de rankings iniciales.
-   * @param client La instancia del participante.
-   * @returns void
-   * @memberof AppGateway
+   * Maneja la solicitud de rankings iniciales.
    */
   @SubscribeMessage('requestInitialRankings')
   handleInitialRankings(client: Socket) {
@@ -151,37 +110,54 @@ export class AppGateway
   }
 
   /**
-   * Este método maneja la solicitud de actualización de usuarios conectados.
-   * Cuando un participante solicita la lista actualizada de usuarios, se emite a todos los usuarios.
-   * @param client La instancia del participante.
-   * @returns void
-   * @memberof AppGateway
+   * Maneja la solicitud manual de actualización de usuarios conectados.
    */
   @SubscribeMessage('requestUsersUpdate')
   handleUsersUpdateRequest(client: Socket) {
-    console.log(`Participante ${client.id} solicitó actualización de usuarios`);
+    console.log(`Socket ${client.id} solicitó actualización de usuarios`);
     this.sendActiveUsers();
   }
 
   /**
-   * Este método maneja la identificación del usuario cuando se conecta.
-   * Registra al usuario en la lista de conectados y emite la actualización.
-   * @param client La instancia del participante.
-   * @param userData Los datos del usuario (id y username).
-   * @returns void
-   * @memberof AppGateway
+   * Maneja la identificación del usuario cuando se conecta desde web o mobile.
+   * El cliente envía sus datos (userId, username, name, email, avatar, role, platform)
+   * y se registra en el mapa de conectados.
+   *
+   * @param client La instancia del socket.
+   * @param userData Datos del usuario provenientes del JWT/localStorage.
    */
   @SubscribeMessage('identifyUser')
   handleUserIdentification(
     client: Socket,
-    userData: { id: string; username: string },
+    userData: {
+      userId: string;
+      username: string;
+      name: string;
+      email: string;
+      avatar: string;
+      role?: { _id: string; name: string } | null;
+      platform?: 'web' | 'mobile';
+    },
   ) {
-    // Registrar usuario en el mapa de usuarios conectados
-    this.connectedUsers.set(client.id, userData);
-    this.emitUsersUpdate();
+    // Si el socket ya tenía una entrada previa (con userId vacío), la reemplazamos
+    const connectedUser: ConnectedUser = {
+      socketId: client.id,
+      userId: userData.userId,
+      username: userData.username,
+      name: userData.name || userData.username,
+      email: userData.email || '',
+      avatar: userData.avatar || 'default-avatar.svg',
+      role: userData.role || null,
+      platform: userData.platform || 'web',
+      connectedAt: new Date(),
+    };
 
-    // Enviar la lista actual de usuarios conectados al participante que se acaba de identificar
-    console.log(`Login to users-update with username: ${userData.username}`);
-    client.emit('users-update', Array.from(this.connectedUsers.values()));
+    this.connectedUsers.set(client.id, connectedUser);
+
+    console.log(
+      `Usuario identificado: ${connectedUser.name} (${connectedUser.platform})`,
+    );
+
+    this.sendActiveUsers();
   }
 }

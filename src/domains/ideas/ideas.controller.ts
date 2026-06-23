@@ -45,7 +45,10 @@ class IdeaResponseDto {
   @ApiProperty({ enum: ['alta', 'media', 'baja'], example: 'media' })
   prioridad: string;
 
-  @ApiProperty({ enum: ['pendiente', 'en_desarrollo', 'desarrollada'], example: 'pendiente' })
+  @ApiProperty({
+    enum: ['pendiente', 'en_desarrollo', 'desarrollada'],
+    example: 'pendiente',
+  })
   estado: string;
 
   @ApiProperty({ example: null })
@@ -63,7 +66,11 @@ class IdeaResponseDto {
 
   @ApiProperty({
     example: [
-      { fecha: '2026-05-26T00:00:00.000Z', accion: 'creada', detalle: 'Idea creada' },
+      {
+        fecha: '2026-05-26T00:00:00.000Z',
+        accion: 'creada',
+        detalle: 'Idea creada',
+      },
     ],
   })
   historial: any[];
@@ -113,10 +120,21 @@ export class IdeasController {
   @ApiOperation({ summary: 'Listar ideas (paginado con filtros)' })
   @ApiQuery({ name: 'page', required: false, example: 1 })
   @ApiQuery({ name: 'limit', required: false, example: 50 })
-  @ApiQuery({ name: 'estado', required: false, enum: ['pendiente', 'en_desarrollo', 'desarrollada'] })
-  @ApiQuery({ name: 'prioridad', required: false, enum: ['alta', 'media', 'baja'] })
+  @ApiQuery({
+    name: 'estado',
+    required: false,
+    enum: ['pendiente', 'en_desarrollo', 'desarrollada'],
+  })
+  @ApiQuery({
+    name: 'prioridad',
+    required: false,
+    enum: ['alta', 'media', 'baja'],
+  })
   @ApiQuery({ name: 'tag', required: false, description: 'Filtrar por tag' })
-  @ApiOkResponse({ description: 'Lista paginada de ideas.', type: IdeasPaginatedDto })
+  @ApiOkResponse({
+    description: 'Lista paginada de ideas.',
+    type: IdeasPaginatedDto,
+  })
   async findAll(
     @Query('page') page: number = 1,
     @Query('limit') limit: number = 50,
@@ -147,7 +165,11 @@ export class IdeasController {
   @BypassPermission()
   @Get(':id')
   @ApiOperation({ summary: 'Obtener una idea por su ID personalizado' })
-  @ApiParam({ name: 'id', description: 'ID personalizado de la idea (ej: vibra-100)', example: 'vibra-100' })
+  @ApiParam({
+    name: 'id',
+    description: 'ID personalizado de la idea (ej: vibra-100)',
+    example: 'vibra-100',
+  })
   @ApiOkResponse({ description: 'Idea encontrada.', type: IdeaResponseDto })
   @ApiNotFoundResponse({ description: 'Idea no encontrada.' })
   async findById(@Param('id') id: string) {
@@ -159,17 +181,18 @@ export class IdeasController {
   @ApiParam({ name: 'id', description: 'ID personalizado de la idea' })
   @ApiBody({ type: UpdateIdeaDto })
   @ApiOkResponse({ description: 'Idea actualizada.', type: IdeaResponseDto })
-  async update(
-    @Param('id') id: string,
-    @Body() updateIdeaDto: UpdateIdeaDto,
-  ) {
+  async update(@Param('id') id: string, @Body() updateIdeaDto: UpdateIdeaDto) {
     return this.ideasService.update(id, updateIdeaDto);
   }
 
   @Put(':id/estado')
   @ApiOperation({ summary: 'Cambiar estado de una idea' })
   @ApiParam({ name: 'id', description: 'ID personalizado de la idea' })
-  @ApiQuery({ name: 'estado', required: true, enum: ['pendiente', 'en_desarrollo', 'desarrollada'] })
+  @ApiQuery({
+    name: 'estado',
+    required: true,
+    enum: ['pendiente', 'en_desarrollo', 'desarrollada'],
+  })
   @ApiOkResponse({ description: 'Estado actualizado.', type: IdeaResponseDto })
   async updateEstado(
     @Param('id') id: string,

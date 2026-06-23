@@ -98,7 +98,11 @@ export class IdeasService {
     return updated;
   }
 
-  async updateEstado(id: string, estado: string, detalle?: string): Promise<Idea> {
+  async updateEstado(
+    id: string,
+    estado: string,
+    detalle?: string,
+  ): Promise<Idea> {
     this.logger.log(`Updating estado for idea ${id} to ${estado}...`);
     const now = new Date().toISOString();
     const updateData: any = {
@@ -114,7 +118,20 @@ export class IdeasService {
     }
 
     const updated = await this.ideaModel
-      .findOneAndUpdate({ id }, { $set: updateData, $push: { historial: { fecha: now, accion: estado, detalle: detalle ?? `Estado cambiado a ${estado}` } } }, { new: true })
+      .findOneAndUpdate(
+        { id },
+        {
+          $set: updateData,
+          $push: {
+            historial: {
+              fecha: now,
+              accion: estado,
+              detalle: detalle ?? `Estado cambiado a ${estado}`,
+            },
+          },
+        },
+        { new: true },
+      )
       .exec();
     if (!updated) {
       throw new NotFoundException(`Idea con id ${id} no encontrada`);
@@ -183,9 +200,9 @@ export class IdeasService {
         this.ideaModel.countDocuments({ estado: 'desarrollada' }).exec(),
         this.ideaModel.countDocuments({ estado: 'en_desarrollo' }).exec(),
         this.ideaModel.countDocuments({ estado: 'pendiente' }).exec(),
-        this.ideaModel.aggregate([
-          { $group: { _id: '$prioridad', count: { $sum: 1 } } },
-        ]).exec(),
+        this.ideaModel
+          .aggregate([{ $group: { _id: '$prioridad', count: { $sum: 1 } } }])
+          .exec(),
       ]);
 
     const por_prioridad: Record<string, number> = {};
@@ -202,16 +219,30 @@ export class IdeasService {
     };
   }
 
+  async getAllTags(): Promise<{ tags: string[] }> {
+    this.logger.log('Fetching all unique tags from ideas...');
+    const result = await this.ideaModel
+      .aggregate([
+        { $unwind: '$tags' },
+        { $match: { tags: { $ne: '', $exists: true } } },
+        {
+          $group: {
+            _id: null,
+            tags: { $addToSet: { $toLower: { $trim: { input: '$tags' } } } },
+          },
+        },
+      ])
+      .exec();
+    const tags = result.length > 0 ? result[0].tags.sort() : [];
+    return { tags };
+  }
+
   async buscar(texto: string): Promise<Idea[]> {
     this.logger.log(`Searching ideas for: ${texto}`);
     const regex = new RegExp(texto, 'i');
     return this.ideaModel
       .find({
-        $or: [
-          { descripcion: regex },
-          { detalle: regex },
-          { tags: regex },
-        ],
+        $or: [{ descripcion: regex }, { detalle: regex }, { tags: regex }],
       })
       .sort({ 'fechas.modificacion': -1 })
       .exec();

@@ -18,4 +18,3 @@ export class AddPermissionToTemplateDto {
   @IsNotEmpty()
   editedBy: string;
 }
-
