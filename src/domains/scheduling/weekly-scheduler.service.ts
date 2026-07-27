@@ -1,9 +1,17 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { Cron } from '@nestjs/schedule';
 import { ActivitiesService } from 'src/domains/activities/activities.service';
 import { Activity } from 'src/domains/activities/schemas/activity.schema';
-import { Emotion } from 'src/domains/emotions/schemas/emotion.schema';
 
+/**
+ * Programador semanal de actividades.
+ *
+ * NOTA: Estos jobs ahora se gestionan desde el panel de administración
+ * de Tareas Programadas (CronJobModule). Los @Cron estáticos se
+ * han eliminado en favor del sistema dinámico de jobs.
+ *
+ * Los métodos se mantienen por compatibilidad y pueden ser
+ * invocados desde JobTypeRegistry.
+ */
 @Injectable()
 export class WeeklyScheduler {
   private readonly logger = new Logger(WeeklyScheduler.name);
@@ -12,9 +20,7 @@ export class WeeklyScheduler {
 
   /**
    * Desactiva actividades cuya fecha de programación ya pasó.
-   * Corre a las 05:00 UTC (00:00 medianoche Colombia).
    */
-  @Cron('0 5 * * *') // Every day at 05:00 UTC (00:00 Colombia)
   async deactivateExpiredActivities() {
     this.logger.log('Checking for expired activities...');
     try {
@@ -23,22 +29,22 @@ export class WeeklyScheduler {
       this.logger.log(
         `[ExpiredActivities] Job completed. ${count} actividades desactivadas.`,
       );
+      return { success: true, count };
     } catch (error) {
       this.logger.error('Error deactivating expired activities:', error);
+      throw error;
     }
   }
 
-  //@Cron('0 20 * * 0') // Domingo 20:00 GMT
-  @Cron('48 22 * * *') // Every day at 22:48 UTC (17:48 Colombia)
+  /**
+   * Genera el plan semanal de actividades.
+   */
   async generateWeeklyPlan() {
     this.logger.log('Starting weekly plan generation...');
     try {
       const emotions = await this.activityService.getRandomEmotions(7);
-      console.log('emotions:', emotions);
-
       const activities: Activity[] =
         await this.activityService.assignActivities(emotions);
-      console.log('activities:', activities);
 
       const weekSchedule = activities.map((activity: Activity, index) => ({
         date: this.getNextWeekDate(index),
@@ -46,8 +52,6 @@ export class WeeklyScheduler {
         activity: activity._id.toString(),
         status: 'pending',
       }));
-
-      console.log('Weekly schedule:', weekSchedule);
 
       await this.activityService.createWeeklySchedule({
         weekNumber: this.activityService.getCurrentWeek(),
@@ -61,17 +65,12 @@ export class WeeklyScheduler {
         participants: await this.activityService.getActiveUsers(),
       } as unknown as any);
 
-      this.sendNotifications();
       this.logger.log('Weekly plan generated successfully');
+      return { success: true, daysCount: weekSchedule.length };
     } catch (error) {
       this.logger.error('Error generating weekly plan:', error);
       throw error;
     }
-  }
-
-  private sendNotifications() {
-    // TODO: Implement notification sending logic
-    console.log('Notifications sent');
   }
 
   private getNextWeekDate(dayIndex: number): Date {
