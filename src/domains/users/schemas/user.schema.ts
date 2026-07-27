@@ -64,7 +64,7 @@ export class User extends Document {
   @Prop({
     type: MongooseSchema.Types.ObjectId,
     ref: 'Role',
-    required: false,
+    required: true,
     index: true,
   })
   role: Types.ObjectId | Role;

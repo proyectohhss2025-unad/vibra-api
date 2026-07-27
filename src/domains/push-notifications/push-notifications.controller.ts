@@ -8,6 +8,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { Request } from 'express';
+import { RequirePermission } from 'src/infrastructure/auth/require-permission.decorator';
 import { RegisterTokenDto } from './dto/register-token.dto';
 import { PushNotificationService } from './push-notifications.service';
 
@@ -19,6 +20,7 @@ export class PushNotificationController {
     private readonly pushNotificationService: PushNotificationService,
   ) {}
 
+  @RequirePermission('P-EST-007')
   @Post('register')
   @ApiOperation({
     summary: 'Registrar token push de dispositivo',

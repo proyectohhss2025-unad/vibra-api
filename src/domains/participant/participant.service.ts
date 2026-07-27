@@ -7,6 +7,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { parse } from 'csv-parse';
 import { readFileSync } from 'fs';
 import { Model, PipelineStage, Types } from 'mongoose';
+import { ActivityCompletion } from '../activity-completions/schemas/activity-completion.schema';
 import { WeeklySchedule } from '../activities/schemas/weekly-schedule.schema';
 import { CreateParticipantDto } from './dto/create-participant.dto';
 import {
@@ -25,6 +26,8 @@ export class ParticipantService {
     private weeklyScheduleModel: Model<WeeklySchedule>,
     @InjectModel(Company.name)
     private companyModel: Model<Company>,
+    @InjectModel(ActivityCompletion.name)
+    private completionModel: Model<ActivityCompletion>,
   ) {}
 
   // ─── NUEVO: Crear participante desde registro de User ───
@@ -302,6 +305,74 @@ export class ParticipantService {
         .sort({ name: 1 }),
       count: await this.participantModel.countDocuments(filter),
     };
+  }
+
+  // ─── Dashboard: Total participantes + último participante activo ───
+  async getOverviewStats() {
+    const count = await this.participantModel
+      .countDocuments({ isActive: true })
+      .exec();
+
+    // Buscar la participación más reciente en activitycompletions
+    const lastCompletion = await this.completionModel
+      .findOne()
+      .sort({ completedAt: -1 })
+      .populate({
+        path: 'participant',
+        select:
+          'nickname avatar points level currentStreak maxStreak totalActivitiesCompleted lastActivityDate currentCourse userId',
+        populate: { path: 'currentCourse', select: 'name' },
+      })
+      .populate('activity', 'title')
+      .lean()
+      .exec();
+
+    let lastParticipant = null;
+    if (lastCompletion?.participant) {
+      const p = lastCompletion.participant as any;
+
+      // Obtener avatar del usuario real desde la colección users
+      let userAvatar = p.avatar;
+      if (!userAvatar && p.userId) {
+        const userIdStr = p.userId._id?.toString() || p.userId.toString?.();
+        if (userIdStr) {
+          const userDoc = await this.participantModel.db
+            .collection('users')
+            .findOne(
+              { _id: new Types.ObjectId(userIdStr) },
+              { projection: { avatar: 1 } },
+            );
+          userAvatar = (userDoc as any)?.avatar || null;
+        }
+      }
+
+      lastParticipant = {
+        participantId: p._id?.toString(),
+        nickname: p.nickname,
+        avatar: userAvatar,
+        points: p.points,
+        level: p.level,
+        currentStreak: p.currentStreak,
+        maxStreak: p.maxStreak,
+        totalActivitiesCompleted: p.totalActivitiesCompleted,
+        lastActivityDate: p.lastActivityDate,
+        course: p.currentCourse
+          ? {
+              _id: p.currentCourse._id?.toString(),
+              name: (p.currentCourse as any).name,
+            }
+          : null,
+        lastParticipation: {
+          completedAt: (lastCompletion as any).completedAt,
+          activityTitle:
+            ((lastCompletion as any).activity as any)?.title || null,
+          achievedScore: (lastCompletion as any).achievedScore,
+          plannedScore: (lastCompletion as any).plannedScore,
+        },
+      };
+    }
+
+    return { count, lastParticipant };
   }
 
   // ─── LEGACY: Contar todos ───

@@ -9,6 +9,7 @@ import {
   ApiQuery,
   ApiTags,
 } from '@nestjs/swagger';
+import { RequirePermission } from 'src/infrastructure/auth/require-permission.decorator';
 import { ActivityCompletionsService } from './activity-completions.service';
 import { CreateCompletionDto } from './dto/create-completion.dto';
 
@@ -20,6 +21,7 @@ export class ActivityCompletionsController {
     private readonly completionsService: ActivityCompletionsService,
   ) {}
 
+  @RequirePermission('P-EST-004')
   @Post()
   @ApiOperation({
     summary: 'Registrar completación de actividad',
@@ -32,6 +34,7 @@ export class ActivityCompletionsController {
     return this.completionsService.create(dto);
   }
 
+  @RequirePermission('P-EST-006')
   @Get('participant/:participantId')
   @ApiOperation({
     summary: 'Historial de completaciones de un participante',
@@ -54,6 +57,7 @@ export class ActivityCompletionsController {
     );
   }
 
+  @RequirePermission('P-EST-006')
   @Get('stats/:participantId')
   @ApiOperation({
     summary: 'Estadísticas de un participante',
@@ -66,25 +70,22 @@ export class ActivityCompletionsController {
     return this.completionsService.getStats(participantId);
   }
 
+  @RequirePermission('P-EST-003')
   @Get('today-count')
   @ApiOperation({
     summary: 'Completaciones de hoy',
     description:
-      'Retorna el número de actividades completadas en el día de hoy.',
+      'Retorna el número de actividades completadas hoy + datos de la última completación.',
   })
   @ApiOkResponse({
-    schema: {
-      type: 'object',
-      properties: {
-        count: { type: 'number', example: 8 },
-      },
-    },
+    description:
+      'count (total) y lastCompletion con datos del último en completar hoy.',
   })
   async getTodayCount() {
-    const count = await this.completionsService.getTodayCount();
-    return { count };
+    return this.completionsService.getTodayCount();
   }
 
+  @RequirePermission('P-EST-007')
   @Get('ranking')
   @ApiOperation({
     summary: 'Ranking global de participantes',
@@ -97,6 +98,7 @@ export class ActivityCompletionsController {
     return this.completionsService.getRanking(limit ?? 20);
   }
 
+  @RequirePermission('P-EST-006')
   @Get(':id')
   @ApiOperation({
     summary: 'Detalle de una completación',

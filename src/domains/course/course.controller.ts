@@ -7,6 +7,7 @@ import {
   Post,
   Put,
   Query,
+  Request,
 } from '@nestjs/common';
 import { BypassPermission } from 'src/infrastructure/auth/bypass-permission.decorator';
 import { RequirePermission } from 'src/infrastructure/auth/require-permission.decorator';
@@ -161,6 +162,90 @@ export class CourseController {
   ): Promise<{ data: any[] }> {
     const data = await this.courseService.search(searchTerm);
     return { data };
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  //  ENDPOINTS PARA DOCENTE — Monitoreo de cursos asignados
+  // ═══════════════════════════════════════════════════════════════════════
+
+  /**
+   * Obtiene los cursos asignados al docente autenticado.
+   * GET /api/courses/my-courses
+   */
+  @RequirePermission('P-DOC-001')
+  @Get('my-courses')
+  @ApiOperation({
+    summary: 'Cursos del docente autenticado',
+    description:
+      'Retorna los cursos donde el docente autenticado está asignado como instructor, ' +
+      'con conteo de estudiantes y progreso básico.',
+  })
+  @ApiOkResponse({
+    description: 'Cursos del docente.',
+    schema: {
+      type: 'object',
+      properties: {
+        message: { type: 'string' },
+        courses: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              _id: { type: 'string' },
+              name: { type: 'string' },
+              studentCount: { type: 'number' },
+              activeStudents: { type: 'number' },
+            },
+          },
+        },
+      },
+    },
+  })
+  async getMyCourses(@Request() req: any) {
+    const userId = req.user?.sub || req.user?._id;
+    return this.courseService.findByInstructor(userId?.toString());
+  }
+
+  /**
+   * Obtiene los estudiantes de un curso con su progreso.
+   * GET /api/courses/:courseId/students
+   */
+  @RequirePermission('P-DOC-001')
+  @Get(':courseId/students')
+  @ApiOperation({
+    summary: 'Estudiantes de un curso',
+    description:
+      'Retorna la lista de estudiantes inscritos en un curso, con datos de perfil y progreso.',
+  })
+  @ApiParam({
+    name: 'courseId',
+    description: 'ID del curso',
+    example: '65f1a2b3c4d5e6f7g8h9i0j',
+  })
+  @ApiOkResponse({ description: 'Lista de estudiantes del curso.' })
+  async getCourseStudents(@Param('courseId') courseId: string) {
+    return this.courseService.getCourseStudents(courseId);
+  }
+
+  /**
+   * Obtiene estadísticas agregadas de progreso de un curso.
+   * GET /api/courses/:courseId/progress
+   */
+  @RequirePermission('P-DOC-002')
+  @Get(':courseId/progress')
+  @ApiOperation({
+    summary: 'Estadísticas de progreso de un curso',
+    description:
+      'Retorna estadísticas agregadas: total estudiantes, activos, puntaje promedio, niveles.',
+  })
+  @ApiParam({
+    name: 'courseId',
+    description: 'ID del curso',
+    example: '65f1a2b3c4d5e6f7g8h9i0j',
+  })
+  @ApiOkResponse({ description: 'Estadísticas de progreso del curso.' })
+  async getCourseProgress(@Param('courseId') courseId: string) {
+    return this.courseService.getCourseProgressStats(courseId);
   }
 
   /**

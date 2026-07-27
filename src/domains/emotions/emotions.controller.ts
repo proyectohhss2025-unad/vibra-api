@@ -77,6 +77,7 @@ class EmotionsPaginatedDto {
 export class EmotionsController {
   constructor(private readonly emotionsService: EmotionsService) {}
 
+  @RequirePermission('P-EST-007')
   @Post()
   @ApiOperation({ summary: 'Crear una emoción' })
   @ApiBody({ type: CreateEmotionDto })
@@ -85,7 +86,7 @@ export class EmotionsController {
     return this.emotionsService.create(createEmotionDto);
   }
 
-  @BypassPermission()
+  @RequirePermission('P-EST-007')
   @Get()
   @ApiOperation({ summary: 'Listar emociones (paginado)' })
   @ApiQuery({ name: 'page', required: false, example: 1 })
@@ -101,7 +102,7 @@ export class EmotionsController {
     return this.emotionsService.findAll(page, limit);
   }
 
-  @BypassPermission()
+  @RequirePermission('P-EST-007')
   @Get('search')
   @ApiOperation({ summary: 'Buscar por término' })
   @ApiQuery({ name: 'searchTerm', required: true })

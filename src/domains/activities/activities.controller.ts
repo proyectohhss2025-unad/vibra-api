@@ -137,7 +137,7 @@ export class ActivitiesController {
     return this.activitiesService.create(createActivityDto);
   }
 
-  @BypassPermission()
+  @RequirePermission('P-EST-003')
   @Get()
   @ApiOperation({
     summary: 'Listar actividades (paginado + filtro por emoción)',
@@ -264,6 +264,18 @@ export class ActivitiesController {
   }
 
   @BypassPermission()
+  @Get('overview-stats')
+  @ApiOperation({
+    summary: 'Estadísticas generales de actividades para el dashboard',
+    description:
+      'Retorna total de actividades activas, total de retos, última actividad creada y último reto creado.',
+  })
+  @ApiOkResponse({ description: 'Estadísticas generales de actividades.' })
+  getOverviewStats() {
+    return this.activitiesService.getOverviewStats();
+  }
+
+  @BypassPermission()
   @Get('count-by-type')
   @ApiOperation({
     summary: 'Contar actividades por tipo',
@@ -284,7 +296,7 @@ export class ActivitiesController {
     return { count };
   }
 
-  @BypassPermission()
+  @RequirePermission('P-EST-003')
   @Get('check-date')
   @ApiOperation({
     summary: 'Verificar si ya existe actividad para una fecha',
@@ -352,6 +364,7 @@ export class ActivitiesController {
     return { data };
   }
 
+  @RequirePermission('P-EST-003')
   @Get(':id')
   @ApiOperation({
     summary: 'Consultar una actividad por id',
@@ -403,7 +416,7 @@ export class ActivitiesController {
     return this.activitiesService.softDelete(id);
   }
 
-  @BypassPermission()
+  @RequirePermission('P-EST-003')
   @Get('emotions/list')
   @ApiOperation({
     summary: 'Listar emociones disponibles (por actividades)',
@@ -418,7 +431,7 @@ export class ActivitiesController {
     return this.activitiesService.getAvailableEmotions();
   }
 
-  @BypassPermission()
+  @RequirePermission('P-EST-003')
   @Get('user/:userId')
   @ApiOperation({
     summary: 'Listar actividades de un usuario',
@@ -474,7 +487,7 @@ export class ActivitiesController {
     });
   }
 
-  @BypassPermission()
+  @RequirePermission('P-EST-003')
   @Get('daily/current')
   @ApiOperation({
     summary: 'Obtener actividad del día',
@@ -501,7 +514,7 @@ export class ActivitiesController {
     return this.activitiesService.getTodaysActivity();
   }
 
-  @BypassPermission()
+  @RequirePermission('P-EST-004')
   @Post(':id/:userId/submit')
   @ApiOperation({
     summary: 'Registrar respuesta de un usuario a una actividad',
@@ -542,7 +555,7 @@ export class ActivitiesController {
    * Obtiene las respuestas de los usuarios para una actividad específica.
    * GET /api/activities/:id/responses
    */
-  @BypassPermission()
+  @RequirePermission('P-EST-006')
   @Get(':id/responses')
   @ApiOperation({ summary: 'Obtener respuestas de usuarios a una actividad' })
   @ApiParam({ name: 'id', description: 'ID de la actividad (MongoDB _id)' })
@@ -597,7 +610,7 @@ export class ActivitiesController {
    * Verifica si un usuario ya ha respondido una actividad.
    * GET /api/activities/:id/check-response?userId=xxx
    */
-  @BypassPermission()
+  @RequirePermission('P-EST-006')
   @Get(':id/check-response')
   @ApiOperation({
     summary: 'Verificar si un usuario ya respondió una actividad',

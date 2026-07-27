@@ -24,6 +24,7 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { RequirePermission } from 'src/infrastructure/auth/require-permission.decorator';
 import { CreateNotificationDto } from './dto/create-notification.dto';
 import { UpdateNotificationDto } from './dto/update-notification.dto';
 import { NotificationService } from './notification.service';
@@ -162,6 +163,7 @@ export class NotificationController {
    * @param page - Page number
    * @param rows - Number of rows per page
    */
+  @RequirePermission('P-EST-007')
   @ApiOperation({ summary: 'Obtener todas las notificaciones con paginación' })
   @ApiQuery({
     name: 'page',
@@ -263,6 +265,7 @@ export class NotificationController {
    * @param id The ID of the notification to mark as read.
    * @returns The updated notification.
    */
+  @RequirePermission('P-EST-007')
   @Put('read/:id')
   @ApiOperation({ summary: 'Marcar notificación como leída' })
   @ApiParam({ name: 'id', description: 'ID de la notificación.' })
@@ -311,6 +314,7 @@ export class NotificationController {
    * @param id The ID of the user.
    * @returns The count of unread notifications.
    */
+  @RequirePermission('P-EST-007')
   @Get('unread/count/:id')
   @ApiOperation({
     summary: 'Retrieve the count of unread notifications for a user',

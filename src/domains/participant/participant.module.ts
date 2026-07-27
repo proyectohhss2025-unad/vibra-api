@@ -2,6 +2,10 @@ import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { AuthMiddleware } from 'src/infrastructure/auth/auth.middleware';
 import {
+  ActivityCompletion,
+  ActivityCompletionSchema,
+} from '../activity-completions/schemas/activity-completion.schema';
+import {
   WeeklySchedule,
   WeeklyScheduleSchema,
 } from '../activities/schemas/weekly-schedule.schema';
@@ -16,6 +20,7 @@ import { Company, CompanySchema } from '../company/schemas/company.schema';
       { name: Participant.name, schema: ParticipantSchema },
       { name: WeeklySchedule.name, schema: WeeklyScheduleSchema },
       { name: Company.name, schema: CompanySchema },
+      { name: ActivityCompletion.name, schema: ActivityCompletionSchema },
     ]),
   ],
   controllers: [ParticipantController],

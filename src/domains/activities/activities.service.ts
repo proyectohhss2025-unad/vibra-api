@@ -248,6 +248,48 @@ export class ActivitiesService {
       .countDocuments({ type, isActive: true, deleted: { $ne: true } })
       .exec();
   }
+
+  // ─── Dashboard: total activas, total retos, última actividad, último reto ───
+  async getOverviewStats() {
+    const baseFilter = { isActive: true, deleted: { $ne: true } };
+
+    const [totalCount, retosCount, lastActivity, lastReto] = await Promise.all([
+      this.activityModel.countDocuments(baseFilter).exec(),
+      this.activityModel.countDocuments({ ...baseFilter, type: 'reto' }).exec(),
+      this.activityModel
+        .findOne(baseFilter)
+        .sort({ createdAt: -1 })
+        .populate('emotion', 'name')
+        .lean()
+        .exec(),
+      this.activityModel
+        .findOne({ ...baseFilter, type: 'reto' })
+        .sort({ createdAt: -1 })
+        .lean()
+        .exec(),
+    ]);
+
+    const mapActivity = (a: any) =>
+      a
+        ? {
+            id: a.id,
+            title: a.title,
+            type: a.type,
+            difficulty: a.difficulty,
+            emotionName: a.emotion?.name || null,
+            scheduleDate: a.schedule?.date || null,
+            createdAt: a.createdAt,
+          }
+        : null;
+
+    return {
+      totalCount,
+      retosCount,
+      lastActivity: mapActivity(lastActivity),
+      lastReto: mapActivity(lastReto),
+    };
+  }
+
   async findById(id: string): Promise<Activity> {
     return this.activityModel.findById(id).exec();
   }
@@ -287,6 +329,34 @@ export class ActivitiesService {
     return this.activityModel
       .findByIdAndUpdate(id, { $set: { isActive: false } }, { new: true })
       .exec();
+  }
+
+  /**
+   * Desactiva actividades cuya fecha de programación ya pasó.
+   * Se ejecuta diariamente desde un cron job.
+   * Compara schedule.date contra el inicio del día actual en Colombia (UTC-5).
+   * @returns Número de actividades desactivadas
+   */
+  async deactivateExpiredActivities(): Promise<number> {
+    const { start } = getColombiaDayRange();
+
+    const result = await this.activityModel
+      .updateMany(
+        {
+          isActive: true,
+          'schedule.date': { $lt: start },
+        },
+        { $set: { isActive: false, updatedAt: new Date() } },
+      )
+      .exec();
+
+    if (result.modifiedCount > 0) {
+      this.logger.log(
+        `[ExpiredActivities] ${result.modifiedCount} actividad(es) desactivada(s) por fecha vencida`,
+      );
+    }
+
+    return result.modifiedCount;
   }
 
   async getAvailableEmotions(): Promise<string[]> {

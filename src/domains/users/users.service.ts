@@ -1,6 +1,7 @@
 import {
   ConflictException,
   Injectable,
+  InternalServerErrorException,
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
@@ -36,11 +37,17 @@ export class UsersService {
 
   async create(createUserDto: CreateUserDto): Promise<User> {
     this.logger.log('Creating a new user...');
-    const hashedPassword = await bcrypt.hash(createUserDto.password, 10);
+
+    // Sanitizar _id: si el frontend envía _id vacío (ej: formularios reutilizados),
+    // eliminarlo para que MongoDB lo autogenere como ObjectId nativo.
+    const { _id, ...sanitizedDto } = (createUserDto as any);
+
+    const hashedPassword = await bcrypt.hash(sanitizedDto.password, 10);
     const presets = this.getDefaultPresetGallery();
     const createdUser = new this.userModel({
-      ...createUserDto,
+      ...sanitizedDto,
       password: hashedPassword,
+      avatar: sanitizedDto.avatar || 'default-avatar.svg',
       avatarGallery: presets,
     });
     const savedUser = await createdUser.save();
@@ -225,6 +232,52 @@ export class UsersService {
     return this.userModel.countDocuments(query).exec();
   }
 
+  // ─── Dashboard: Total usuarios + último usuario registrado ───
+  async getOverviewStats() {
+    const count = await this.userModel
+      .countDocuments({ isActive: true })
+      .exec();
+
+    // Buscar el último usuario registrado por createdAt
+    const lastUser = await this.userModel
+      .findOne({ isActive: true })
+      .sort({ createdAt: -1 })
+      .populate('role', 'name')
+      .populate('company', 'name')
+      .select('-password')
+      .lean()
+      .exec();
+
+    let lastRegisteredUser = null;
+    if (lastUser) {
+      lastRegisteredUser = {
+        userId: (lastUser as any)._id?.toString(),
+        name: (lastUser as any).name,
+        username: (lastUser as any).username,
+        email: (lastUser as any).email,
+        avatar: (lastUser as any).avatar,
+        role: (lastUser as any).role
+          ? {
+              _id: (lastUser as any).role._id?.toString(),
+              name: (lastUser as any).role.name,
+            }
+          : null,
+        company: (lastUser as any).company
+          ? {
+              _id: (lastUser as any).company._id?.toString(),
+              name: (lastUser as any).company.name,
+            }
+          : null,
+        documentNumber: (lastUser as any).documentNumber,
+        phoneNumber: (lastUser as any).phoneNumber,
+        gender: (lastUser as any).gender,
+        createdAt: (lastUser as any).createdAt,
+      };
+    }
+
+    return { count, lastRegisteredUser };
+  }
+
   /**
    * @returns User[]
    */
@@ -285,7 +338,13 @@ export class UsersService {
     this.logger.log(`Finding user by query: ${JSON.stringify(query)}`);
     return this.userModel
       .findOne(query)
-      .populate({ path: 'role' })
+      .populate({
+        path: 'role',
+        populate: {
+          path: 'permissionTemplate',
+          populate: { path: 'permissions' },
+        },
+      })
       .populate({ path: 'documentType' })
       .populate({
         path: 'company',
@@ -602,6 +661,42 @@ export class UsersService {
       .limit(20)
       .sort({ createdAt: -1 })
       .exec();
+  }
+
+  /**
+   * Activa o desactiva un usuario
+   * @param id - ID del usuario
+   * @param active - Estado activo/inactivo
+   * @param editedBy - Usuario que realizó el cambio
+   */
+  async setActive(id: string, active: boolean, editedBy: string) {
+    try {
+      const user = await this.userModel.findById(id);
+
+      if (!user) {
+        this.logger.warn(`User with ID ${id} not found`);
+        throw new NotFoundException('User not found');
+      }
+
+      user.isActive = active;
+      user.editedBy = editedBy;
+      user.editedAt = new Date();
+
+      await user.save();
+
+      this.logger.log(
+        `User with ID ${id} active status updated to ${active}`,
+      );
+      return { message: 'User active status updated', user };
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      this.logger.error(
+        `Error updating active status for user with ID ${id}: ${error.message}`,
+      );
+      throw new InternalServerErrorException('Error updating user status');
+    }
   }
 
   /**

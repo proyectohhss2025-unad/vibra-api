@@ -27,10 +27,10 @@ export type RoleDocument = HydratedDocument<Role>;
  */
 @Schema({ timestamps: true })
 export class Role extends Document {
-  @Prop({ required: true })
+  @Prop({ type: String, required: true })
   name: string;
 
-  @Prop({ required: true })
+  @Prop({ type: String, required: true })
   description: string;
 
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'PermissionTemplate' })

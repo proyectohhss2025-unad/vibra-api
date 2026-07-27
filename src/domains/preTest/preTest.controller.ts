@@ -210,6 +210,7 @@ export class PreTestController {
    * @param testData - Data of the pre-test response
    * @returns The saved pre-test response
    */
+  @RequirePermission('P-EST-002')
   @ApiOperation({ summary: 'Save a pre-test response' })
   @ApiResponse({
     status: 201,
@@ -250,6 +251,7 @@ export class PreTestController {
    * @param userId - User ID
    * @returns List of tests for the user
    */
+  @RequirePermission('P-EST-006')
   @ApiOperation({ summary: 'Get all tests by user ID' })
   @ApiResponse({ status: 200, description: 'List of tests for the user.' })
   @Get('search/user/:userId')
@@ -282,6 +284,7 @@ export class PreTestController {
    * @param id - ID of the pre-test result
    * @returns The pre-test result
    */
+  @RequirePermission('P-EST-006')
   @ApiOperation({ summary: 'Get pre-test result by ID' })
   @ApiResponse({ status: 200, description: 'The pre-test result.' })
   @ApiResponse({ status: 404, description: 'Pre-test result not found.' })
@@ -308,6 +311,7 @@ export class PreTestController {
    * @param type - Opcional: 'initial' | 'final'
    * @returns Estado de completitud de tests
    */
+  @RequirePermission('P-EST-006')
   @ApiOperation({
     summary: 'Get test completion status for a user',
     description:

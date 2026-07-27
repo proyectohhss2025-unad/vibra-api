@@ -272,15 +272,78 @@ export class ActivityCompletionsService {
   }
 
   /**
-   * Obtiene el número de completaciones registradas hoy.
+   * Obtiene el número de completaciones registradas hoy
+   * y los datos de la última completación del día.
    */
-  async getTodayCount(): Promise<number> {
+  async getTodayCount(): Promise<{
+    count: number;
+    lastCompletion: {
+      completionId: string;
+      participantId: string;
+      participantNickname: string;
+      participantAvatar?: string;
+      participantLevel: string;
+      participantPoints: number;
+      activityTitle: string;
+      achievedScore: number;
+      plannedScore: number;
+      completedAt: Date;
+    } | null;
+  }> {
     const { start, end } = getColombiaDayRange();
 
-    return this.completionModel
-      .countDocuments({
-        completedAt: { $gte: start, $lte: end },
-      })
-      .exec();
+    const [count, lastDoc] = await Promise.all([
+      this.completionModel
+        .countDocuments({
+          completedAt: { $gte: start, $lte: end },
+        })
+        .exec(),
+      this.completionModel
+        .findOne({ completedAt: { $gte: start, $lte: end } })
+        .sort({ completedAt: -1 })
+        .populate({
+          path: 'participant',
+          select: 'nickname avatar level points userId',
+        })
+        .populate('activity', 'title')
+        .lean()
+        .exec(),
+    ]);
+
+    let lastCompletion = null;
+    if (lastDoc) {
+      const p = (lastDoc as any).participant as any;
+      const a = (lastDoc as any).activity as any;
+
+      // Obtener avatar del usuario real desde la colección users
+      let participantAvatar = p?.avatar || null;
+      if (!participantAvatar && p?.userId) {
+        const userIdStr = p.userId._id?.toString() || p.userId.toString?.();
+        if (userIdStr) {
+          const userDoc = await this.completionModel.db
+            .collection('users')
+            .findOne(
+              { _id: new Types.ObjectId(userIdStr) },
+              { projection: { avatar: 1 } },
+            );
+          participantAvatar = (userDoc as any)?.avatar || null;
+        }
+      }
+
+      lastCompletion = {
+        completionId: (lastDoc as any)._id?.toString(),
+        participantId: p?._id?.toString() || '',
+        participantNickname: p?.nickname || 'Participante',
+        participantAvatar: participantAvatar,
+        participantLevel: p?.level || 'bronce',
+        participantPoints: p?.points || 0,
+        activityTitle: a?.title || 'Actividad',
+        achievedScore: (lastDoc as any).achievedScore,
+        plannedScore: (lastDoc as any).plannedScore,
+        completedAt: (lastDoc as any).completedAt,
+      };
+    }
+
+    return { count, lastCompletion };
   }
 }

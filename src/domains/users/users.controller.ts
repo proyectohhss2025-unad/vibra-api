@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   Param,
+  Patch,
   Post,
   Delete,
   Query,
@@ -248,6 +249,28 @@ export class UsersController {
     });
   }
 
+  @Patch('active')
+  @ApiOperation({ summary: 'Activar/Desactivar un usuario' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        _id: { type: 'string', description: 'ID del usuario' },
+        active: { type: 'boolean', description: 'Estado activo/inactivo' },
+        editedBy: { type: 'string', description: 'Usuario que realizó el cambio' },
+      },
+    },
+  })
+  @ApiOkResponse({ description: 'Estado actualizado exitosamente' })
+  @ApiNotFoundResponse({ description: 'Usuario no encontrado' })
+  async setActive(
+    @Body('_id') id: string,
+    @Body('active') active: boolean,
+    @Body('editedBy') editedBy: string,
+  ) {
+    return this.usersService.setActive(id, active, editedBy);
+  }
+
   @BypassPermission()
   @Post()
   @ApiOperation({
@@ -287,6 +310,21 @@ export class UsersController {
   })
   async findAll() {
     return this.usersService.findAll();
+  }
+
+  // ─── Dashboard: estadísticas generales de usuarios ───
+  @BypassPermission()
+  @Get('overview-stats')
+  @ApiOperation({
+    summary: 'Obtener total de usuarios + último usuario registrado',
+    description:
+      'Retorna count (total) y lastRegisteredUser con datos del último usuario creado en el sistema.',
+  })
+  @ApiOkResponse({
+    description: 'Estadísticas generales de usuarios para el dashboard.',
+  })
+  getOverviewStats() {
+    return this.usersService.getOverviewStats();
   }
 
   @BypassPermission()
@@ -402,7 +440,7 @@ export class UsersController {
   //  AVATAR GALLERY ENDPOINTS
   // ═════════════════════════════════════════════════════════════════════════
 
-  @BypassPermission()
+  @RequirePermission('P-EST-005')
   @Get('avatar/gallery')
   @ApiOperation({
     summary: 'Obtener galería de avatares',
@@ -420,7 +458,7 @@ export class UsersController {
     return this.usersService.getAvatarGallery(userId);
   }
 
-  @BypassPermission()
+  @RequirePermission('P-EST-005')
   @Post('avatar/select')
   @ApiOperation({
     summary: 'Seleccionar avatar activo',
@@ -440,7 +478,7 @@ export class UsersController {
     return this.usersService.selectAvatar(userId, dto.galleryId);
   }
 
-  @BypassPermission()
+  @RequirePermission('P-EST-005')
   @Post('avatar/upload')
   @UseInterceptors(
     FileInterceptor('file', {
@@ -483,7 +521,7 @@ export class UsersController {
     return this.usersService.uploadAvatarImage(userId, file);
   }
 
-  @BypassPermission()
+  @RequirePermission('P-EST-005')
   @Delete('avatar/:galleryId')
   @ApiOperation({
     summary: 'Eliminar avatar de la galería',

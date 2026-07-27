@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   Post,
+  Query,
   Request,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -10,15 +11,18 @@ import {
   ApiBody,
   ApiOkResponse,
   ApiOperation,
+  ApiQuery,
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
 import { Public } from 'src/infrastructure/auth/public.decorator';
+import { RequirePermission } from 'src/infrastructure/auth/require-permission.decorator';
 import { UsersService } from '../users/users.service';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
+import { RolesService } from '../roles/roles.service';
 
 @Controller('api/auth')
 @ApiTags('Gestión de autenticación de usuarios')
@@ -26,6 +30,7 @@ export class AuthController {
   constructor(
     private readonly authService: AuthService,
     private readonly usersService: UsersService,
+    private readonly rolesService: RolesService,
   ) {}
 
   @Public()
@@ -43,14 +48,53 @@ export class AuthController {
   @ApiResponse({ status: 201, description: 'Usuario registrado.' })
   async register(@Body() registerDto: RegisterDto) {
     try {
+      // Asignar rol "Estudiante" automáticamente
+      const estudianteRole = await this.rolesService.findByName('Estudiante');
+
       const user = await this.usersService.create({
         ...registerDto,
+        role: estudianteRole._id.toString(),
         avatar: registerDto.avatar || 'default-avatar.svg',
       });
       return { message: 'User registered successfully' };
     } catch (error) {
       console.error(error);
+      if (error instanceof Error && error.message === 'Role not found') {
+        throw new UnauthorizedException(
+          'Rol Estudiante no configurado. Contacte al administrador.',
+        );
+      }
       throw new UnauthorizedException('Registration failed');
+    }
+  }
+
+  @RequirePermission('9')
+  @Post('register-docente')
+  @ApiOperation({ summary: 'Registrar docente (solo admin)' })
+  @ApiBody({ type: RegisterDto })
+  @ApiResponse({ status: 201, description: 'Docente registrado.' })
+  @ApiResponse({
+    status: 403,
+    description: 'Acceso denegado (requiere permiso 9).',
+  })
+  async registerDocente(@Body() registerDto: RegisterDto) {
+    try {
+      const docenteRole = await this.rolesService.findByName('Docente');
+
+      const user = await this.usersService.create({
+        ...registerDto,
+        role: docenteRole._id.toString(),
+        avatar: registerDto.avatar || 'default-avatar.svg',
+      });
+      return { message: 'Docente registrado exitosamente' };
+    } catch (error) {
+      console.error(error);
+      if (error instanceof Error && error.message === 'Role not found') {
+        throw new UnauthorizedException(
+          'Rol Docente no configurado. Ejecute el seed seed-docente-rol.ts primero.',
+        );
+      }
+      throw new UnauthorizedException('Docente registration failed');
     }
   }
 
@@ -105,6 +149,46 @@ export class AuthController {
   async getMyPermissions(@Request() req: any) {
     const userId = req.user?._id || req.user?.sub;
     return this.authService.resolvePermissions(userId);
+  }
+
+  @Get('check-access')
+  @ApiOperation({
+    summary: 'Verificar si el usuario autenticado tiene un permiso específico',
+    description:
+      'Útil para que el frontend muestre/oculte secciones de UI sin llamar a endpoints que devolverían 403. ' +
+      'Ej: /api/auth/check-access?serial=P-EST-001',
+  })
+  @ApiQuery({
+    name: 'serial',
+    required: true,
+    description: 'Serial del permiso a verificar (ej: P-EST-001)',
+    example: 'P-EST-001',
+  })
+  @ApiOkResponse({
+    description: 'Resultado de la verificación.',
+    schema: {
+      type: 'object',
+      properties: {
+        hasAccess: { type: 'boolean', example: true },
+        serial: { type: 'string', example: 'P-EST-001' },
+      },
+    },
+  })
+  async checkAccess(
+    @Request() req: any,
+    @Query('serial') serial: string,
+  ): Promise<{ hasAccess: boolean; serial: string }> {
+    if (!serial) {
+      return { hasAccess: false, serial: '' };
+    }
+    const userId = req.user?._id || req.user?.sub;
+    if (!userId) {
+      return { hasAccess: false, serial };
+    }
+    const permissions = await this.authService.resolvePermissions(userId);
+    const hasAccess =
+      permissions.isSuperAdmin || permissions.serials.includes(serial);
+    return { hasAccess, serial };
   }
 
   @Public()

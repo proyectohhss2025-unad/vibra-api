@@ -107,6 +107,7 @@ export class ParticipantController {
   constructor(private readonly participantService: ParticipantService) {}
 
   // ─── Crear participante ───
+  @RequirePermission('P-EST-007')
   @Post()
   @ApiOperation({ summary: 'Crear participante (desde registro de User)' })
   @ApiBody({ type: CreateParticipantDto })
@@ -119,6 +120,7 @@ export class ParticipantController {
   }
 
   // ─── Buscar participante por userId ───
+  @RequirePermission('P-EST-003')
   @Get('by-user/:userId')
   @ApiOperation({ summary: 'Obtener participante por userId' })
   @ApiParam({ name: 'userId', description: 'ID del usuario (User)' })
@@ -131,6 +133,7 @@ export class ParticipantController {
   }
 
   // ─── Actualizar puntos (actividad completada) ───
+  @RequirePermission('P-EST-004')
   @Patch(':id/points')
   @ApiOperation({
     summary:
@@ -150,6 +153,7 @@ export class ParticipantController {
   }
 
   // ─── Historial de actividad por día ───
+  @RequirePermission('P-EST-006')
   @Get(':id/activity-history')
   @ApiOperation({
     summary: 'Obtener historial de actividades completadas por día',
@@ -162,6 +166,7 @@ export class ParticipantController {
   }
 
   // ─── Leaderboard del curso ───
+  @RequirePermission('P-EST-007')
   @Get('leaderboard')
   @ApiOperation({ summary: 'Obtener leaderboard de participantes por puntos' })
   @ApiQuery({ name: 'courseId', required: false, example: '65f1a2b3c4d5e6f7' })
@@ -193,7 +198,7 @@ export class ParticipantController {
   }
 
   // ─── Listar participantes ───
-  @RequirePermission('9')
+  @RequirePermission(['9', 'P-DOC-001'])
   @Get()
   @ApiOperation({ summary: 'Listar participantes' })
   @ApiQuery({ name: 'page', required: false, example: 1 })
@@ -204,6 +209,22 @@ export class ParticipantController {
   })
   findAll(@Query() query: any) {
     return this.participantService.findAll(query);
+  }
+
+  // ─── Dashboard: estadísticas generales ───
+  @BypassPermission()
+  @Get('overview-stats')
+  @ApiOperation({
+    summary:
+      'Obtener total de participantes + datos del último participante activo',
+  })
+  @ApiResponse({
+    status: 200,
+    description:
+      'Retorna count (total) y lastParticipant con datos del último en participar',
+  })
+  getOverviewStats() {
+    return this.participantService.getOverviewStats();
   }
 
   // ─── Contar todos ───
@@ -219,7 +240,7 @@ export class ParticipantController {
   }
 
   // ─── Buscar ───
-  @RequirePermission('9')
+  @RequirePermission(['9', 'P-DOC-001'])
   @Get('search')
   @ApiOperation({ summary: 'Buscar participantes' })
   @ApiQuery({ name: 'searchTerm', required: true, example: 'demo' })
@@ -232,7 +253,7 @@ export class ParticipantController {
   }
 
   // ─── Obtener por _id ───
-  @RequirePermission('9')
+  @RequirePermission(['9', 'P-DOC-001'])
   @Get(':id')
   @ApiOperation({ summary: 'Obtener participante por _id' })
   @ApiParam({ name: 'id', description: 'ID del participante.' })
@@ -245,7 +266,7 @@ export class ParticipantController {
   }
 
   // ─── Actualizar ───
-  @BypassPermission()
+  @RequirePermission('P-EST-005')
   @Post('update')
   @ApiOperation({ summary: 'Actualizar participante' })
   @ApiBody({ type: UpdateParticipantDto })
@@ -279,7 +300,7 @@ export class ParticipantController {
   }
 
   // ─── Filtrar por fechas (legacy) ───
-  @RequirePermission('9')
+  @RequirePermission(['9', 'P-DOC-001'])
   @Get('filter')
   @ApiOperation({ summary: 'Listar participantes por rango de fechas' })
   @ApiQuery({ name: 'startDate', required: false, example: '2026-01-01' })
@@ -305,7 +326,7 @@ export class ParticipantController {
   }
 
   // ─── Paginado (legacy) ───
-  @RequirePermission('9')
+  @RequirePermission(['9', 'P-DOC-001'])
   @Get('paginated')
   @ApiOperation({ summary: 'Listar participantes (paginado)' })
   @ApiQuery({ name: 'page', required: false, example: 1 })

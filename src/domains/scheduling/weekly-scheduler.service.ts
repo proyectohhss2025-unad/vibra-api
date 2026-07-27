@@ -10,8 +10,26 @@ export class WeeklyScheduler {
 
   constructor(private activityService: ActivitiesService) {}
 
+  /**
+   * Desactiva actividades cuya fecha de programación ya pasó.
+   * Corre a las 05:00 UTC (00:00 medianoche Colombia).
+   */
+  @Cron('0 5 * * *') // Every day at 05:00 UTC (00:00 Colombia)
+  async deactivateExpiredActivities() {
+    this.logger.log('Checking for expired activities...');
+    try {
+      const count =
+        await this.activityService.deactivateExpiredActivities();
+      this.logger.log(
+        `[ExpiredActivities] Job completed. ${count} actividades desactivadas.`,
+      );
+    } catch (error) {
+      this.logger.error('Error deactivating expired activities:', error);
+    }
+  }
+
   //@Cron('0 20 * * 0') // Domingo 20:00 GMT
-  @Cron('48 22 * * *') // Every day at 22:00 (10:00 PM)
+  @Cron('48 22 * * *') // Every day at 22:48 UTC (17:48 Colombia)
   async generateWeeklyPlan() {
     this.logger.log('Starting weekly plan generation...');
     try {

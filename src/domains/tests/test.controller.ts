@@ -72,7 +72,7 @@ export class TestController {
     return this.testService.create(createTestDto);
   }
 
-  @BypassPermission()
+  @RequirePermission('P-EST-001')
   @Get()
   @ApiOperation({ summary: 'Listar todos los tests (paginado)' })
   @ApiQuery({ name: 'page', required: false, example: 1 })
@@ -89,7 +89,7 @@ export class TestController {
     return this.testService.findAll(page, limit, search, category);
   }
 
-  @BypassPermission()
+  @RequirePermission('P-EST-001')
   @Get('by-testid/:testId')
   @ApiOperation({ summary: 'Obtener un test por su testId (string)' })
   @ApiParam({
@@ -102,7 +102,7 @@ export class TestController {
     return this.testService.findByTestId(testId);
   }
 
-  @BypassPermission()
+  @RequirePermission('P-EST-001')
   @Get('pending-by-type')
   @ApiOperation({
     summary:
@@ -123,7 +123,7 @@ export class TestController {
     return this.testService.findPendingByType(type, userId);
   }
 
-  @BypassPermission()
+  @RequirePermission('P-EST-001')
   @Get('search')
   @ApiOperation({ summary: 'Buscar tests por término' })
   @ApiQuery({ name: 'searchTerm', required: true, example: 'personalidad' })

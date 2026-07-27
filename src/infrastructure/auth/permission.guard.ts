@@ -34,7 +34,7 @@ export class PermissionGuard implements CanActivate {
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const requiredSerial = this.reflector.getAllAndOverride<string>(
+    const requiredSerial = this.reflector.getAllAndOverride<string | string[]>(
       REQUIRE_PERMISSION_KEY,
       [context.getHandler(), context.getClass()],
     );
@@ -90,15 +90,22 @@ export class PermissionGuard implements CanActivate {
         return true;
       }
 
-      // Verificar si el serial requerido está en la lista de seriales del usuario
-      const hasPermission = permissions.serials.includes(requiredSerial);
+      // Verificar si el/los serial(es) requerido(s) está(n) en la lista de seriales del usuario
+      // Si es un array, se evalúa como OR lógico (el usuario necesita AL MENOS UNO)
+      const requiredSerials = Array.isArray(requiredSerial)
+        ? requiredSerial
+        : [requiredSerial];
+
+      const hasPermission = requiredSerials.some((s) =>
+        permissions.serials.includes(s),
+      );
 
       if (!hasPermission) {
         this.logger.warn(
-          `FORBIDDEN ${method} ${url} - required serial: ${requiredSerial}, user has: [${permissions.serials}]`,
+          `FORBIDDEN ${method} ${url} - required serials: [${requiredSerials}], user has: [${permissions.serials}]`,
         );
         throw new ForbiddenException(
-          `Acceso denegado. Se requiere permiso: ${requiredSerial}`,
+          `Acceso denegado. Se requiere permiso: ${requiredSerials.join(' o ')}`,
         );
       }
 

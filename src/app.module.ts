@@ -47,6 +47,7 @@ import { IdeasModule } from './domains/ideas/ideas.module';
 import { BackupModule } from './infrastructure/backup/backup.module';
 import { AdminModule } from './domains/admin/admin.module';
 import { MongoDBAdminModule } from './domains/mongodbAdmin/mongodbAdmin.module';
+import { EnrollmentModule } from './domains/enrollment/enrollment.module';
 import { ReportsModule } from './domains/reports/reports.module';
 import { SecurityModule } from './infrastructure/security/security.module';
 
@@ -110,6 +111,7 @@ import { SecurityModule } from './infrastructure/security/security.module';
     BackupModule,
     AdminModule,
     MongoDBAdminModule,
+    EnrollmentModule,
     ReportsModule,
   ],
   providers: [

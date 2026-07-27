@@ -10,6 +10,10 @@ import {
   UserResponse,
   UserResponseSchema,
 } from '../userResponses/schemas/userResponse.schema';
+import {
+  Enrollment,
+  EnrollmentSchema,
+} from '../enrollment/schemas/enrollment.schema';
 import { CourseController } from './course.controller';
 import { CourseService } from './course.service';
 import { Course, CourseSchema } from './schemas/course.schema';
@@ -22,6 +26,7 @@ import { Course, CourseSchema } from './schemas/course.schema';
       { name: User.name, schema: UserSchema },
       { name: Participant.name, schema: ParticipantSchema },
       { name: UserResponse.name, schema: UserResponseSchema },
+      { name: Enrollment.name, schema: EnrollmentSchema },
     ]),
   ],
   controllers: [CourseController],

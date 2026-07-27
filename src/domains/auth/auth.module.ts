@@ -5,6 +5,7 @@ import { PassportModule } from '@nestjs/passport';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { UsersModule } from '../users/users.module';
+import { RolesModule } from '../roles/roles.module';
 import { JwtStrategy } from 'src/infrastructure/auth/jwt.strategy';
 import { AppGateway } from 'src/infrastructure/sockets/appGateway.gateway';
 import { RankingModule } from '../rankings/ranking.module';
@@ -25,6 +26,7 @@ import { CacheModule } from 'src/infrastructure/cache/cache.module';
 @Module({
   imports: [
     UsersModule,
+    RolesModule,
     RankingModule,
     PassportModule,
     CacheModule,

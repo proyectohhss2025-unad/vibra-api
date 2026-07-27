@@ -12,6 +12,7 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { BypassPermission } from 'src/infrastructure/auth/bypass-permission.decorator';
+import { RequirePermission } from 'src/infrastructure/auth/require-permission.decorator';
 import { FeedbackService } from './feedback.service';
 import { Feedback } from './schemas/feedback.schema';
 import { ConvertToIdeaDto } from './dto/convert-to-idea.dto';
@@ -167,6 +168,7 @@ export class FeedbackController {
    * @param req Request object
    * @returns The created feedback
    */
+  @RequirePermission('P-EST-007')
   @Post()
   @ApiOperation({ summary: 'Crear feedback' })
   @ApiBody({ schema: { type: 'object' } })
