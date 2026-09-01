@@ -530,12 +530,18 @@ export class CourseService {
 
     // Total de estudiantes: contar desde enrollments (inscripciones activas o completadas)
     const totalStudents = await this.enrollmentModel
-      .countDocuments({ courseId: courseObjId, status: { $in: ['activo', 'completado'] } })
+      .countDocuments({
+        courseId: courseObjId,
+        status: { $in: ['activo', 'completado'] },
+      })
       .exec();
 
     // Obtener userIds de los estudiantes inscritos para buscar sus participants
     const enrollments = await this.enrollmentModel
-      .find({ courseId: courseObjId, status: { $in: ['activo', 'completado'] } })
+      .find({
+        courseId: courseObjId,
+        status: { $in: ['activo', 'completado'] },
+      })
       .select('userId')
       .lean()
       .exec();

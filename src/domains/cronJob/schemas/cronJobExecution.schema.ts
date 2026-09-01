@@ -41,7 +41,8 @@ export class CronJobExecution {
   updatedAt: Date;
 }
 
-export const CronJobExecutionSchema = SchemaFactory.createForClass(CronJobExecution);
+export const CronJobExecutionSchema =
+  SchemaFactory.createForClass(CronJobExecution);
 
 CronJobExecutionSchema.index({ jobId: 1, startedAt: -1 });
 CronJobExecutionSchema.index({ jobType: 1, result: 1 });

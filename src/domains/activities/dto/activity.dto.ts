@@ -15,8 +15,8 @@ class ResourceDto {
     description: 'Tipo de recurso asociado a la actividad.',
     example: 'video',
   })
-  @IsEnum(['video', 'audio'])
-  type: 'video' | 'audio';
+  @IsEnum(['video', 'audio', 'image'])
+  type: 'video' | 'audio' | 'image';
 
   @ApiProperty({
     description: 'URL del recurso (video/audio).',

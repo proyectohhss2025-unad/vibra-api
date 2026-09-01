@@ -51,10 +51,16 @@ async function bootstrap() {
   try {
     // 1. Verificar si los permisos ya existen (idempotente)
     const existingPerms = await permissionModel
-      .find({ serial: { $in: ['P-ENROLL-001', 'P-ENROLL-002', 'P-ENROLL-003', 'P-ENROLL-004'] } })
+      .find({
+        serial: {
+          $in: ['P-ENROLL-001', 'P-ENROLL-002', 'P-ENROLL-003', 'P-ENROLL-004'],
+        },
+      })
       .exec();
     if (existingPerms.length >= 4) {
-      console.log('✔ Todos los permisos P-ENROLL ya existen. Seed saltado (idempotente).');
+      console.log(
+        '✔ Todos los permisos P-ENROLL ya existen. Seed saltado (idempotente).',
+      );
       return;
     }
 
@@ -101,14 +107,15 @@ async function bootstrap() {
       {
         name: 'Ver mis cursos',
         serial: 'P-ENROLL-004',
-        description:
-          'Permite al estudiante ver sus cursos asignados',
+        description: 'Permite al estudiante ver sus cursos asignados',
       },
     ];
 
     const createdPermisos: any[] = [];
     for (const pData of permisosData) {
-      const exists = await permissionModel.findOne({ serial: pData.serial }).exec();
+      const exists = await permissionModel
+        .findOne({ serial: pData.serial })
+        .exec();
       if (!exists) {
         const [perm] = await permissionModel.create([
           {
@@ -132,7 +139,9 @@ async function bootstrap() {
     // Estudiante → P-ENROLL-004
 
     const permIds_001_003 = createdPermisos
-      .filter((p) => ['P-ENROLL-001', 'P-ENROLL-002', 'P-ENROLL-003'].includes(p.serial))
+      .filter((p) =>
+        ['P-ENROLL-001', 'P-ENROLL-002', 'P-ENROLL-003'].includes(p.serial),
+      )
       .map((p) => p._id);
 
     const permIds_004 = createdPermisos
@@ -140,16 +149,27 @@ async function bootstrap() {
       .map((p) => p._id);
 
     // Buscar roles y sus plantillas
-    const adminRole = await roleModel.findOne({ name: 'Administrador' }).populate('permissionTemplate').exec();
-    const docenteRole = await roleModel.findOne({ name: 'Docente' }).populate('permissionTemplate').exec();
-    const estudianteRole = await roleModel.findOne({ name: 'Estudiante' }).populate('permissionTemplate').exec();
+    const adminRole = await roleModel
+      .findOne({ name: 'Administrador' })
+      .populate('permissionTemplate')
+      .exec();
+    const docenteRole = await roleModel
+      .findOne({ name: 'Docente' })
+      .populate('permissionTemplate')
+      .exec();
+    const estudianteRole = await roleModel
+      .findOne({ name: 'Estudiante' })
+      .populate('permissionTemplate')
+      .exec();
 
     // Admin
     if (adminRole && (adminRole as any).permissionTemplate) {
       const templateId = (adminRole as any).permissionTemplate._id;
       await templateModel
         .findByIdAndUpdate(templateId, {
-          $addToSet: { permissions: { $each: [...permIds_001_003, ...permIds_004] } },
+          $addToSet: {
+            permissions: { $each: [...permIds_001_003, ...permIds_004] },
+          },
         })
         .exec();
       console.log(`✔ Permisos agregados a plantilla del rol Administrador`);

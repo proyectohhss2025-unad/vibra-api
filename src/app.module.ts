@@ -71,6 +71,10 @@ import { SecurityModule } from './infrastructure/security/security.module';
         rootPath: path.join(process.cwd(), 'public', 'avatars'),
         serveRoot: '/avatars',
       },
+      {
+        rootPath: path.join(process.cwd(), 'uploads'),
+        serveRoot: '/uploads',
+      },
     ),
     AuditLogModule,
     CompanyModule,

@@ -87,11 +87,7 @@ export class CronJobExecutionService {
   /**
    * Obtiene el historial de ejecuciones de un job.
    */
-  async getHistory(
-    jobId: Types.ObjectId,
-    page = 1,
-    limit = 20,
-  ) {
+  async getHistory(jobId: Types.ObjectId, page = 1, limit = 20) {
     const skip = (page - 1) * limit;
     const [docs, total] = await Promise.all([
       this.executionModel
@@ -109,7 +105,9 @@ export class CronJobExecutionService {
   /**
    * Obtiene el resumen de ejecuciones recientes para todos los jobs.
    */
-  async getLastExecutionForJobs(jobIds: Types.ObjectId[]): Promise<Map<string, CronJobExecutionDocument>> {
+  async getLastExecutionForJobs(
+    jobIds: Types.ObjectId[],
+  ): Promise<Map<string, CronJobExecutionDocument>> {
     const map = new Map<string, CronJobExecutionDocument>();
     for (const jobId of jobIds) {
       const last = await this.executionModel

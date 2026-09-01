@@ -31,7 +31,9 @@ export class CronJobController {
   @Post()
   @ApiOperation({ summary: 'Crear un nuevo job programado' })
   @ApiBody({ type: CreateCronJobDto })
-  @ApiCreatedResponse({ description: 'Job creado y registrado en el scheduler.' })
+  @ApiCreatedResponse({
+    description: 'Job creado y registrado en el scheduler.',
+  })
   create(@Body() dto: CreateCronJobDto) {
     return this.cronJobService.create(dto);
   }
@@ -48,6 +50,17 @@ export class CronJobController {
     );
   }
 
+  @Get('search')
+  @ApiOperation({ summary: 'Buscar jobs por término' })
+  @ApiQuery({ name: 'searchTerm', required: true, example: 'backup' })
+  @ApiOkResponse({ description: 'Resultados de búsqueda.' })
+  async search(
+    @Query('searchTerm') searchTerm: string,
+  ): Promise<{ data: any[] }> {
+    const data = await this.cronJobService.search(searchTerm);
+    return { data };
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Obtener un job por ID' })
   @ApiParam({ name: 'id', description: 'ID del job' })
@@ -57,10 +70,14 @@ export class CronJobController {
   }
 
   @Put(':id')
-  @ApiOperation({ summary: 'Actualizar un job (cambia expresión, activo, config, etc.)' })
+  @ApiOperation({
+    summary: 'Actualizar un job (cambia expresión, activo, config, etc.)',
+  })
   @ApiParam({ name: 'id', description: 'ID del job' })
   @ApiBody({ type: UpdateCronJobDto })
-  @ApiOkResponse({ description: 'Job actualizado y resincronizado con el scheduler.' })
+  @ApiOkResponse({
+    description: 'Job actualizado y resincronizado con el scheduler.',
+  })
   update(@Param('id') id: string, @Body() dto: UpdateCronJobDto) {
     return this.cronJobService.update(id, dto);
   }

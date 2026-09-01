@@ -21,13 +21,50 @@ export class FileUploadService {
     readableStream.push(file?.buffer);
     readableStream.push(null);
 
-    const uploadStream = this.gridFSBucket.openUploadStream(file?.originalname);
+    const uploadStream = this.gridFSBucket.openUploadStream(
+      file?.originalname,
+      {
+        contentType: file?.mimetype,
+      },
+    );
     readableStream.pipe(uploadStream);
 
     return new Promise((resolve, reject) => {
       uploadStream.on('finish', () => resolve(uploadStream.id.toString()));
       uploadStream.on('error', reject);
     });
+  }
+
+  /**
+   * Obtiene la metadata de un archivo de GridFS (tamaño y contentType).
+   * Retorna null si el archivo no existe.
+   */
+  async getFileMetadata(
+    fileId: string,
+  ): Promise<{ length: number; contentType?: string } | null> {
+    const objectId = new ObjectId(fileId);
+    const db = this.connection.db;
+    const fileDoc = await db.collection('fs.files').findOne({ _id: objectId });
+    if (!fileDoc) return null;
+    return {
+      length: fileDoc.length,
+      contentType: fileDoc.contentType,
+    };
+  }
+
+  /**
+   * Abre un stream de descarga con rango (para soporte HTTP Range en videos).
+   * @param fileId - ID del archivo en GridFS
+   * @param start - Byte inicial (inclusive)
+   * @param end - Byte final (exclusive, como espera GridFS)
+   */
+  async getFileStreamRange(
+    fileId: string,
+    start: number,
+    end: number,
+  ): Promise<Readable> {
+    const objectId = new ObjectId(fileId);
+    return this.gridFSBucket.openDownloadStream(objectId, { start, end });
   }
 
   /**

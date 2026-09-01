@@ -51,10 +51,24 @@ export class RankingService implements OnGatewayConnection {
       .find({ isActive: true })
       .select('userId nickname points level avatar')
       .sort({ points: -1 })
-      .limit(100)
+      .limit(200)
       .lean();
 
-    return participants.map((p, index) => ({
+    // Deduplicar por userId: un usuario puede tener varios participantes
+    // (uno por curso/inscripción) y aparecer repetido en el ranking.
+    // Se conserva el de mayor puntaje para que cada usuario tenga una sola posición.
+    const uniqueByUser = new Map<string, any>();
+    for (const p of participants) {
+      const uid =
+        typeof p.userId === 'object' ? p.userId.toString() : String(p.userId);
+      const existing = uniqueByUser.get(uid);
+      if (!existing || (p.points || 0) > (existing.points || 0)) {
+        uniqueByUser.set(uid, p);
+      }
+    }
+    const uniqueParticipants = Array.from(uniqueByUser.values()).slice(0, 100);
+
+    return uniqueParticipants.map((p, index) => ({
       userId: typeof p.userId === 'object' ? p.userId.toString() : p.userId,
       nickname: p.nickname || 'participante',
       level: p.level || 'bronce',

@@ -32,3 +32,6 @@ export class Emotion extends Document {
 }
 
 export const EmotionSchema = SchemaFactory.createForClass(Emotion);
+
+// Índice para optimizar el filtrado por estado (activas/inactivas)
+EmotionSchema.index({ isActive: 1 });

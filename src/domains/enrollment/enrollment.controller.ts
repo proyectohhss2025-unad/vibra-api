@@ -41,7 +41,10 @@ export class EnrollmentController {
       'Si algún estudiante ya está inscrito, se omite sin error.',
   })
   @ApiBody({ type: CreateEnrollmentDto })
-  @ApiResponse({ status: 201, description: 'Estudiantes inscritos exitosamente' })
+  @ApiResponse({
+    status: 201,
+    description: 'Estudiantes inscritos exitosamente',
+  })
   @ApiResponse({ status: 400, description: 'Datos inválidos' })
   @ApiResponse({ status: 403, description: 'Sin permisos para este curso' })
   @ApiResponse({ status: 404, description: 'Curso no encontrado' })

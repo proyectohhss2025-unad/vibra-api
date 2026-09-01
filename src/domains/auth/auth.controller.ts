@@ -51,12 +51,20 @@ export class AuthController {
       // Asignar rol "Estudiante" automáticamente
       const estudianteRole = await this.rolesService.findByName('Estudiante');
 
-      const user = await this.usersService.create({
-        ...registerDto,
-        role: estudianteRole._id.toString(),
-        avatar: registerDto.avatar || 'default-avatar.svg',
-      });
-      return { message: 'User registered successfully' };
+      // Registro público: el usuario se crea INACTIVO (isPublic: true) y debe ser
+      // activado por un docente o administrador antes de poder iniciar sesión.
+      const user = await this.usersService.create(
+        {
+          ...registerDto,
+          role: estudianteRole._id.toString(),
+          avatar: registerDto.avatar || 'default-avatar.svg',
+        },
+        { isPublic: true },
+      );
+      return {
+        message:
+          'Usuario registrado exitosamente. Tu cuenta está pendiente de aprobación por un docente o administrador.',
+      };
     } catch (error) {
       console.error(error);
       if (error instanceof Error && error.message === 'Role not found') {

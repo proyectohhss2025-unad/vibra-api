@@ -91,6 +91,12 @@ export class EmotionsController {
   @ApiOperation({ summary: 'Listar emociones (paginado)' })
   @ApiQuery({ name: 'page', required: false, example: 1 })
   @ApiQuery({ name: 'limit', required: false, example: 10 })
+  @ApiQuery({
+    name: 'isActive',
+    required: false,
+    enum: ['all', 'active', 'inactive'],
+    description: 'Filtrar por estado (default: all).',
+  })
   @ApiOkResponse({
     description: 'Catálogo de emociones.',
     type: EmotionsPaginatedDto,
@@ -98,8 +104,9 @@ export class EmotionsController {
   async findAll(
     @Query('page') page: number = 1,
     @Query('limit') limit: number = 10,
+    @Query('isActive') isActive: string = 'all',
   ) {
-    return this.emotionsService.findAll(page, limit);
+    return this.emotionsService.findAll(page, limit, isActive);
   }
 
   @RequirePermission('P-EST-007')

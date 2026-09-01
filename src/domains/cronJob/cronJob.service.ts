@@ -8,8 +8,11 @@ import {
 import { InjectModel } from '@nestjs/mongoose';
 import { SchedulerRegistry } from '@nestjs/schedule';
 import { CronJob as CronJobCron } from 'cron';
-import { Model, Types } from 'mongoose';
-import { CronJob as CronJobModel, CronJobDocument } from './schemas/cronJob.schema';
+import { Model, FlattenMaps } from 'mongoose';
+import {
+  CronJob as CronJobModel,
+  CronJobDocument,
+} from './schemas/cronJob.schema';
 import { CreateCronJobDto } from './dto/create-cron-job.dto';
 import { UpdateCronJobDto } from './dto/update-cron-job.dto';
 import { JobTypeRegistry } from './job-type-registry.service';
@@ -20,7 +23,8 @@ export class CronJobService implements OnModuleInit {
   private readonly logger = new Logger(CronJobService.name);
 
   constructor(
-    @InjectModel(CronJobModel.name) private cronJobModel: Model<CronJobDocument>,
+    @InjectModel(CronJobModel.name)
+    private cronJobModel: Model<CronJobDocument>,
     private schedulerRegistry: SchedulerRegistry,
     private jobTypeRegistry: JobTypeRegistry,
     private executionService: CronJobExecutionService,
@@ -44,10 +48,14 @@ export class CronJobService implements OnModuleInit {
           await this.registerCronJob(job as any);
           registered++;
         } catch (err) {
-          this.logger.error(`Error al registrar job ${job.name} (${job.jobType}): ${err.message}`);
+          this.logger.error(
+            `Error al registrar job ${job.name} (${job.jobType}): ${err.message}`,
+          );
         }
       }
-      this.logger.log(`Jobs cargados: ${registered} de ${activeJobs.length} activos`);
+      this.logger.log(
+        `Jobs cargados: ${registered} de ${activeJobs.length} activos`,
+      );
     } catch (error) {
       this.logger.error('Error al inicializar jobs:', error.message);
     }
@@ -55,11 +63,43 @@ export class CronJobService implements OnModuleInit {
 
   // ─── CRUD ────────────────────────────────────────────────────────────
 
+  /**
+   * Busca jobs por término (nombre, tipo o descripción).
+   * Con searchTerm 'all' o vacío devuelve los últimos 20 (no eliminados).
+   */
+  async search(searchTerm: string): Promise<FlattenMaps<CronJobDocument>[]> {
+    if (!searchTerm || searchTerm === 'all') {
+      return this.cronJobModel
+        .find({ deletedAt: null })
+        .limit(20)
+        .sort({ createdAt: -1 })
+        .lean()
+        .exec();
+    }
+    const regex = new RegExp(searchTerm, 'i');
+    return this.cronJobModel
+      .find({
+        deletedAt: null,
+        $or: [
+          { name: { $regex: regex } },
+          { jobType: { $regex: regex } },
+          { description: { $regex: regex } },
+        ],
+      })
+      .limit(20)
+      .sort({ createdAt: -1 })
+      .lean()
+      .exec();
+  }
+
   async create(dto: CreateCronJobDto) {
     // Validar que el tipo de job exista en el registro
     const typeDef = this.jobTypeRegistry.get(dto.jobType);
     if (!typeDef) {
-      const available = this.jobTypeRegistry.list().map(t => t.name).join(', ');
+      const available = this.jobTypeRegistry
+        .list()
+        .map((t) => t.name)
+        .join(', ');
       throw new BadRequestException(
         `Tipo de job '${dto.jobType}' no válido. Tipos disponibles: ${available}`,
       );
@@ -73,10 +113,12 @@ export class CronJobService implements OnModuleInit {
     }
 
     // Verificar que no exista un job activo con el mismo jobType
-    const existing = await this.cronJobModel.findOne({
-      jobType: dto.jobType,
-      deletedAt: null,
-    }).exec();
+    const existing = await this.cronJobModel
+      .findOne({
+        jobType: dto.jobType,
+        deletedAt: null,
+      })
+      .exec();
     if (existing) {
       throw new BadRequestException(
         `Ya existe un job activo con el tipo '${dto.jobType}'. Cada tipo de job solo puede tener una instancia activa.`,
@@ -119,12 +161,14 @@ export class CronJobService implements OnModuleInit {
       this.cronJobModel.countDocuments({ deletedAt: null }),
     ]);
 
-    const jobs = docs.map(doc => this.formatJobResponse(doc as any));
+    const jobs = docs.map((doc) => this.formatJobResponse(doc as any));
     return { docs: jobs, total, page, limit };
   }
 
   async findOne(id: string) {
-    const job = await this.cronJobModel.findOne({ _id: id, deletedAt: null }).exec();
+    const job = await this.cronJobModel
+      .findOne({ _id: id, deletedAt: null })
+      .exec();
     if (!job) {
       throw new NotFoundException(`Job con ID '${id}' no encontrado`);
     }
@@ -132,7 +176,9 @@ export class CronJobService implements OnModuleInit {
   }
 
   async update(id: string, dto: UpdateCronJobDto) {
-    const job = await this.cronJobModel.findOne({ _id: id, deletedAt: null }).exec();
+    const job = await this.cronJobModel
+      .findOne({ _id: id, deletedAt: null })
+      .exec();
     if (!job) {
       throw new NotFoundException(`Job con ID '${id}' no encontrado`);
     }
@@ -143,10 +189,13 @@ export class CronJobService implements OnModuleInit {
     if (dto.description !== undefined) updateData.description = dto.description;
     if (dto.active !== undefined) updateData.active = dto.active;
     if (dto.config !== undefined) updateData.config = dto.config;
-    if (dto.retryOnFailure !== undefined) updateData.retryOnFailure = dto.retryOnFailure;
+    if (dto.retryOnFailure !== undefined)
+      updateData.retryOnFailure = dto.retryOnFailure;
     if (dto.maxRetries !== undefined) updateData.maxRetries = dto.maxRetries;
-    if (dto.notifyOnError !== undefined) updateData.notifyOnError = dto.notifyOnError;
-    if (dto.notifyOnSuccess !== undefined) updateData.notifyOnSuccess = dto.notifyOnSuccess;
+    if (dto.notifyOnError !== undefined)
+      updateData.notifyOnError = dto.notifyOnError;
+    if (dto.notifyOnSuccess !== undefined)
+      updateData.notifyOnSuccess = dto.notifyOnSuccess;
 
     // Si cambia la expresión cron, validarla
     if (dto.expression !== undefined) {
@@ -159,7 +208,8 @@ export class CronJobService implements OnModuleInit {
     }
 
     // Si cambia active o expression, re-registrar en scheduler
-    const needsReschedule = dto.active !== undefined || dto.expression !== undefined;
+    const needsReschedule =
+      dto.active !== undefined || dto.expression !== undefined;
 
     const updated = await this.cronJobModel
       .findByIdAndUpdate(id, { $set: updateData }, { new: true })
@@ -183,7 +233,9 @@ export class CronJobService implements OnModuleInit {
   }
 
   async remove(id: string) {
-    const job = await this.cronJobModel.findOne({ _id: id, deletedAt: null }).exec();
+    const job = await this.cronJobModel
+      .findOne({ _id: id, deletedAt: null })
+      .exec();
     if (!job) {
       throw new NotFoundException(`Job con ID '${id}' no encontrado`);
     }
@@ -215,7 +267,9 @@ export class CronJobService implements OnModuleInit {
    * Activa o desactiva un job (toggle).
    */
   async toggle(id: string) {
-    const job = await this.cronJobModel.findOne({ _id: id, deletedAt: null }).exec();
+    const job = await this.cronJobModel
+      .findOne({ _id: id, deletedAt: null })
+      .exec();
     if (!job) {
       throw new NotFoundException(`Job con ID '${id}' no encontrado`);
     }
@@ -224,16 +278,20 @@ export class CronJobService implements OnModuleInit {
 
     if (newActiveState) {
       // Activar: registrar en scheduler
-      await this.cronJobModel.findByIdAndUpdate(id, {
-        $set: { active: true, status: 'idle' },
-      }).exec();
+      await this.cronJobModel
+        .findByIdAndUpdate(id, {
+          $set: { active: true, status: 'idle' },
+        })
+        .exec();
       job.active = true;
       await this.registerCronJob(job);
     } else {
       // Desactivar: remover del scheduler
-      await this.cronJobModel.findByIdAndUpdate(id, {
-        $set: { active: false, status: 'paused' },
-      }).exec();
+      await this.cronJobModel
+        .findByIdAndUpdate(id, {
+          $set: { active: false, status: 'paused' },
+        })
+        .exec();
       try {
         this.schedulerRegistry.deleteCronJob(job.jobType);
       } catch {
@@ -248,7 +306,9 @@ export class CronJobService implements OnModuleInit {
    * Ejecuta un job de forma manual (inmediata).
    */
   async executeNow(id: string) {
-    const job = await this.cronJobModel.findOne({ _id: id, deletedAt: null }).exec();
+    const job = await this.cronJobModel
+      .findOne({ _id: id, deletedAt: null })
+      .exec();
     if (!job) {
       throw new NotFoundException(`Job con ID '${id}' no encontrado`);
     }
@@ -265,7 +325,9 @@ export class CronJobService implements OnModuleInit {
   // ─── EXECUTION HISTORY ───────────────────────────────────────────────
 
   async getExecutionHistory(id: string, page = 1, limit = 20) {
-    const job = await this.cronJobModel.findOne({ _id: id, deletedAt: null }).exec();
+    const job = await this.cronJobModel
+      .findOne({ _id: id, deletedAt: null })
+      .exec();
     if (!job) {
       throw new NotFoundException(`Job con ID '${id}' no encontrado`);
     }
@@ -309,9 +371,11 @@ export class CronJobService implements OnModuleInit {
       : null;
 
     // Actualizar nextRunAt en BD
-    await this.cronJobModel.findByIdAndUpdate(job._id, {
-      $set: { status: 'idle', nextRunAt },
-    }).exec();
+    await this.cronJobModel
+      .findByIdAndUpdate(job._id, {
+        $set: { status: 'idle', nextRunAt },
+      })
+      .exec();
 
     this.logger.log(
       `Job registrado: ${job.name} (${jobType}) — expresión: ${expression} — próx: ${nextRunAt?.toISOString()}`,
@@ -334,29 +398,39 @@ export class CronJobService implements OnModuleInit {
     );
 
     // Marcar como running en BD
-    await this.cronJobModel.findByIdAndUpdate(job._id, {
-      $set: { status: 'running' },
-    }).exec();
+    await this.cronJobModel
+      .findByIdAndUpdate(job._id, {
+        $set: { status: 'running' },
+      })
+      .exec();
 
     try {
-      const result = await this.jobTypeRegistry.execute(job.jobType, job.config || {});
+      const result = await this.jobTypeRegistry.execute(
+        job.jobType,
+        job.config || {},
+      );
 
       const duration = Date.now() - startTime;
 
       // Marcar éxito en BD
-      await this.cronJobModel.findByIdAndUpdate(job._id, {
-        $set: {
-          status: 'idle',
-          lastRunAt: new Date(),
-          lastResult: 'success',
-          lastErrorMessage: '',
-          lastDuration: duration,
-          nextRunAt: this.getNextRun(job.jobType),
-        },
-      }).exec();
+      await this.cronJobModel
+        .findByIdAndUpdate(job._id, {
+          $set: {
+            status: 'idle',
+            lastRunAt: new Date(),
+            lastResult: 'success',
+            lastErrorMessage: '',
+            lastDuration: duration,
+            nextRunAt: this.getNextRun(job.jobType),
+          },
+        })
+        .exec();
 
       // Registrar ejecución exitosa
-      await this.executionService.completeExecution(execution._id, result.output);
+      await this.executionService.completeExecution(
+        execution._id,
+        result.output,
+      );
 
       this.logger.log(`Job ejecutado: ${job.name} — éxito (${duration}ms)`);
 
@@ -366,24 +440,30 @@ export class CronJobService implements OnModuleInit {
       const errorMsg = error.message || 'Error desconocido';
 
       // Marcar error en BD
-      await this.cronJobModel.findByIdAndUpdate(job._id, {
-        $set: {
-          status: 'error',
-          lastRunAt: new Date(),
-          lastResult: 'error',
-          lastErrorMessage: errorMsg.substring(0, 2000),
-          lastDuration: duration,
-        },
-      }).exec();
+      await this.cronJobModel
+        .findByIdAndUpdate(job._id, {
+          $set: {
+            status: 'error',
+            lastRunAt: new Date(),
+            lastResult: 'error',
+            lastErrorMessage: errorMsg.substring(0, 2000),
+            lastDuration: duration,
+          },
+        })
+        .exec();
 
       // Registrar ejecución fallida
       await this.executionService.failExecution(execution._id, errorMsg);
 
-      this.logger.error(`Job fallido: ${job.name} — ${errorMsg} (${duration}ms)`);
+      this.logger.error(
+        `Job fallido: ${job.name} — ${errorMsg} (${duration}ms)`,
+      );
 
       // Notificar si está configurado
       if (job.notifyOnError) {
-        this.logger.warn(`[NOTIFICACIÓN PENDIENTE] Job ${job.name} falló: ${errorMsg}`);
+        this.logger.warn(
+          `[NOTIFICACIÓN PENDIENTE] Job ${job.name} falló: ${errorMsg}`,
+        );
       }
 
       return { success: false, message: errorMsg, duration, error: errorMsg };

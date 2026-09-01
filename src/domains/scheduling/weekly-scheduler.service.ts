@@ -24,8 +24,7 @@ export class WeeklyScheduler {
   async deactivateExpiredActivities() {
     this.logger.log('Checking for expired activities...');
     try {
-      const count =
-        await this.activityService.deactivateExpiredActivities();
+      const count = await this.activityService.deactivateExpiredActivities();
       this.logger.log(
         `[ExpiredActivities] Job completed. ${count} actividades desactivadas.`,
       );

@@ -7,7 +7,9 @@ import { RankingService } from '../rankings/ranking.service';
  * Interfaz que debe implementar todo job registrable.
  */
 export interface JobHandler {
-  execute(config: Record<string, any>): Promise<{ success: boolean; message: string; output?: any }>;
+  execute(
+    config: Record<string, any>,
+  ): Promise<{ success: boolean; message: string; output?: any }>;
 }
 
 /**
@@ -54,16 +56,24 @@ export class JobTypeRegistry {
     this.register({
       name: 'GENERATE_WEEKLY_PLAN',
       label: 'Generar Plan Semanal',
-      description: 'Genera el plan semanal de actividades para todos los participantes activos.',
+      description:
+        'Genera el plan semanal de actividades para todos los participantes activos.',
       configSchema: {
         type: 'object',
         properties: {
-          emotionsCount: { type: 'number', description: 'Cantidad de emociones a incluir', default: 7 },
+          emotionsCount: {
+            type: 'number',
+            description: 'Cantidad de emociones a incluir',
+            default: 7,
+          },
         },
       },
       handler: async (config) => {
-        const emotions = await this.activitiesService.getRandomEmotions(config.emotionsCount || 7);
-        const activities = await this.activitiesService.assignActivities(emotions);
+        const emotions = await this.activitiesService.getRandomEmotions(
+          config.emotionsCount || 7,
+        );
+        const activities =
+          await this.activitiesService.assignActivities(emotions);
 
         const weekSchedule = activities.map((activity: any, index: number) => ({
           date: this.getNextWeekDate(index),
@@ -94,8 +104,13 @@ export class JobTypeRegistry {
       description: 'Desactiva actividades cuya fecha de programación ya pasó.',
       configSchema: { type: 'object', properties: {} },
       handler: async () => {
-        const count = await this.activitiesService.deactivateExpiredActivities();
-        return { success: true, message: `${count} actividades desactivadas`, output: { count } };
+        const count =
+          await this.activitiesService.deactivateExpiredActivities();
+        return {
+          success: true,
+          message: `${count} actividades desactivadas`,
+          output: { count },
+        };
       },
     });
 
@@ -103,7 +118,8 @@ export class JobTypeRegistry {
     this.register({
       name: 'UPDATE_RANKINGS',
       label: 'Actualizar Rankings',
-      description: 'Recalcula y emite los rankings de participantes vía WebSocket.',
+      description:
+        'Recalcula y emite los rankings de participantes vía WebSocket.',
       configSchema: { type: 'object', properties: {} },
       handler: async () => {
         await this.rankingService.updateRankings();
@@ -131,7 +147,10 @@ export class JobTypeRegistry {
         const method = config.method || 'GET';
         const options: any = { method };
         if (method === 'POST' && config.body) {
-          options.headers = { 'Content-Type': 'application/json', ...(config.headers || {}) };
+          options.headers = {
+            'Content-Type': 'application/json',
+            ...(config.headers || {}),
+          };
           options.body = JSON.stringify(config.body);
         }
         const response = await fetch(config.url, options);
@@ -139,7 +158,10 @@ export class JobTypeRegistry {
         return {
           success: response.ok,
           message: `HTTP ${response.status}: ${text.substring(0, 500)}`,
-          output: { status: response.status, bodyPreview: text.substring(0, 500) },
+          output: {
+            status: response.status,
+            bodyPreview: text.substring(0, 500),
+          },
         };
       },
     });
@@ -150,7 +172,9 @@ export class JobTypeRegistry {
    */
   register(def: JobTypeDefinition): void {
     if (this.registry.has(def.name)) {
-      this.logger.warn(`JobType '${def.name}' ya está registrado. Se reemplazará.`);
+      this.logger.warn(
+        `JobType '${def.name}' ya está registrado. Se reemplazará.`,
+      );
     }
     this.registry.set(def.name, def);
     this.logger.log(`JobType registrado: ${def.name} — ${def.label}`);
@@ -182,7 +206,10 @@ export class JobTypeRegistry {
   /**
    * Ejecuta el handler de un tipo de job.
    */
-  async execute(jobType: string, config: Record<string, any>): Promise<{ success: boolean; message: string; output?: any }> {
+  async execute(
+    jobType: string,
+    config: Record<string, any>,
+  ): Promise<{ success: boolean; message: string; output?: any }> {
     const def = this.registry.get(jobType);
     if (!def) {
       throw new Error(`Tipo de job '${jobType}' no está registrado`);

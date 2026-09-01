@@ -6,6 +6,7 @@ import * as winston from 'winston';
 import { AppModule } from './app.module';
 import { AppLoggerService } from './helpers/logger/logger.service';
 import { ThrottlerExceptionFilter } from './infrastructure/exceptions/throttler-exception.filter';
+import { WsAdapter } from './infrastructure/sockets/ws-adapter';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
@@ -32,6 +33,8 @@ async function bootstrap() {
   });
 
   app.useGlobalPipes(new ValidationPipe());
+
+  app.useWebSocketAdapter(new WsAdapter(app));
 
   app.enableCors({
     origin: process.env.CORS_ORIGINS ? process.env.CORS_ORIGINS.split(',') : [],

@@ -132,15 +132,33 @@ export class ParticipantService {
       .select('userId nickname points level avatar currentCourse')
       .populate('currentCourse', 'name companyId')
       .sort({ points: -1 })
-      .limit(limit)
+      .limit(limit * 2)
       .lean();
 
-    const totalCount = await this.participantModel.countDocuments(filter);
+    // Deduplicar por userId: un usuario puede tener varios participantes
+    // (uno por curso/inscripción) y aparecer repetido en el ranking.
+    // Se conserva el de mayor puntaje para que cada usuario tenga una sola posición.
+    const uniqueByUser = new Map<string, any>();
+    for (const p of participants) {
+      const uid = String(p.userId);
+      const existing = uniqueByUser.get(uid);
+      if (!existing || (p.points ?? 0) > (existing.points ?? 0)) {
+        uniqueByUser.set(uid, p);
+      }
+    }
+    const uniqueParticipants = Array.from(uniqueByUser.values()).slice(
+      0,
+      limit,
+    );
+
+    // Total de usuarios únicos en el ranking (no de documentos participant)
+    const totalCount = (await this.participantModel.distinct('userId', filter))
+      .length;
 
     // Collect unique companyIds from courses
     const companyIds = [
       ...new Set(
-        participants
+        uniqueParticipants
           .map((p: any) => p.currentCourse?.companyId)
           .filter(Boolean),
       ),
@@ -160,7 +178,7 @@ export class ParticipantService {
       companies.map((c: any) => [c._id.toString(), (c as any).name]),
     );
 
-    const leaderboard = participants.map((p: any, index) => ({
+    const leaderboard = uniqueParticipants.map((p: any, index) => ({
       rank: index + 1,
       userId: p.userId,
       nickname: p.nickname,

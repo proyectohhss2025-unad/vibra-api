@@ -24,7 +24,7 @@ export class Activity extends Document {
   @Prop({
     type: [
       {
-        type: { type: String, enum: ['video', 'audio'] },
+        type: { type: String, enum: ['video', 'audio', 'image'] },
         url: String,
         duration: Number,
         metadata: Object,
@@ -33,7 +33,7 @@ export class Activity extends Document {
     _id: false,
   })
   resources: Types.Array<{
-    type: 'video' | 'audio';
+    type: 'video' | 'audio' | 'image';
     url: string;
     duration?: number;
     metadata?: Record<string, any>;

@@ -337,10 +337,22 @@ export class ActivitiesController {
   @ApiOperation({
     summary: 'Listar actividades (paginado)',
     description:
-      'Obtiene actividades activas con paginación (sin filtro ni userId).',
+      'Obtiene actividades con paginación (sin filtro ni userId). Incluye actividades activas e inactivas para la gestión del dashboard. Soporta filtros por tipo y estado.',
   })
   @ApiQuery({ name: 'page', required: false, example: 1 })
   @ApiQuery({ name: 'limit', required: false, example: 10 })
+  @ApiQuery({
+    name: 'type',
+    required: false,
+    enum: ['all', 'reto', 'evento_personal', 'actividad_pares', 'otro'],
+    description: 'Filtrar por tipo de actividad (default: all).',
+  })
+  @ApiQuery({
+    name: 'isActive',
+    required: false,
+    enum: ['all', 'active', 'inactive'],
+    description: 'Filtrar por estado (default: all).',
+  })
   @ApiOkResponse({
     description: 'Listado paginado.',
     type: ActivitiesPaginatedDto,
@@ -348,8 +360,20 @@ export class ActivitiesController {
   findAllWithPaginate(
     @Query('page') page: number = 1,
     @Query('limit') limit: number = 10,
+    @Query('type') type: string = 'all',
+    @Query('isActive') isActive: string = 'all',
   ) {
-    return this.activitiesService.paginate({ page, limit }, null, {});
+    // Vista de gestión (admin/dashboard): traer TODAS las actividades
+    // (activas e inactivas). El paginate por defecto filtra isActive: true
+    // (pensado para la app del estudiante); aquí se sobreescribe para que
+    // el dashboard pueda listar y gestionar las inactivas.
+    const query: any = {};
+    if (type && type !== 'all') query.type = type;
+    if (isActive === 'active') query.isActive = true;
+    else if (isActive === 'inactive') query.isActive = false;
+    else query.isActive = { $in: [true, false] };
+
+    return this.activitiesService.paginate({ page, limit }, null, query);
   }
 
   @BypassPermission()
@@ -481,6 +505,62 @@ export class ActivitiesController {
     @Query('limit') limit?: string,
   ) {
     return this.activitiesService.findByUserId(userId, {
+      type,
+      page: page ? parseInt(page) : 1,
+      limit: limit ? parseInt(limit) : 10,
+    });
+  }
+
+  @RequirePermission('P-EST-003')
+  @Get('available/:userId')
+  @ApiOperation({
+    summary: 'Listar actividades disponibles de un usuario',
+    description:
+      'Retorna las actividades activas que el usuario aún no ha respondido, opcionalmente filtradas por tipo. Se usa en las tabs de Retos y E-Personal del mobile.',
+  })
+  @ApiParam({
+    name: 'userId',
+    description: 'ID del usuario',
+    example: '69c4b4fc528c5e1f4ab79d0c',
+  })
+  @ApiQuery({
+    name: 'type',
+    required: false,
+    description: 'Filtrar por tipo de actividad',
+    enum: ['reto', 'evento_personal', 'actividad_pares', 'otro'],
+    example: 'reto',
+  })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    description: 'Número de página',
+    example: '1',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    description: 'Items por página',
+    example: '10',
+  })
+  @ApiOkResponse({
+    description: 'Lista de actividades disponibles del usuario',
+    schema: {
+      type: 'object',
+      properties: {
+        data: { type: 'array', items: { type: 'object' } },
+        total: { type: 'number' },
+        page: { type: 'number' },
+        limit: { type: 'number' },
+      },
+    },
+  })
+  async getAvailableActivitiesByUser(
+    @Param('userId') userId: string,
+    @Query('type') type?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.activitiesService.findAvailableByUser(userId, {
       type,
       page: page ? parseInt(page) : 1,
       limit: limit ? parseInt(limit) : 10,

@@ -47,10 +47,7 @@ export class EnrollmentService {
     // 2. Validar permisos: Docente solo puede inscribir en sus propios cursos
     if (userRoleName === 'Docente') {
       const instructorId = userInstructorId?.toString();
-      if (
-        !instructorId ||
-        course.instructorId?.toString() !== instructorId
-      ) {
+      if (!instructorId || course.instructorId?.toString() !== instructorId) {
         throw new ForbiddenException(
           'No tienes permisos para inscribir estudiantes en este curso',
         );
@@ -60,7 +57,9 @@ export class EnrollmentService {
     // 3. Validar que los studentIds sean ObjectIds válidos
     const validIds = studentIds.filter((id) => Types.ObjectId.isValid(id));
     if (validIds.length === 0) {
-      throw new BadRequestException('No se proporcionaron IDs de estudiantes válidos');
+      throw new BadRequestException(
+        'No se proporcionaron IDs de estudiantes válidos',
+      );
     }
 
     // 4. Buscar usuarios y validar que tengan role=Estudiante
@@ -73,7 +72,9 @@ export class EnrollmentService {
       .exec();
 
     if (students.length === 0) {
-      throw new BadRequestException('No se encontraron estudiantes con los IDs proporcionados');
+      throw new BadRequestException(
+        'No se encontraron estudiantes con los IDs proporcionados',
+      );
     }
 
     // Verificar que todos tengan rol Estudiante
@@ -168,9 +169,7 @@ export class EnrollmentService {
    * Cambia status a 'retirado'.
    */
   async remove(enrollmentId: string, userId: string, userRoleName: string) {
-    const enrollment = await this.enrollmentModel
-      .findById(enrollmentId)
-      .exec();
+    const enrollment = await this.enrollmentModel.findById(enrollmentId).exec();
     if (!enrollment) {
       throw new NotFoundException('Inscripción no encontrada');
     }
@@ -180,10 +179,7 @@ export class EnrollmentService {
       const course = await this.courseModel
         .findById(enrollment.courseId)
         .exec();
-      if (
-        !course ||
-        course.instructorId?.toString() !== userId?.toString()
-      ) {
+      if (!course || course.instructorId?.toString() !== userId?.toString()) {
         throw new ForbiddenException(
           'No tienes permisos para retirar estudiantes de este curso',
         );
@@ -211,9 +207,7 @@ export class EnrollmentService {
     userId: string,
     userRoleName: string,
   ) {
-    const enrollment = await this.enrollmentModel
-      .findById(enrollmentId)
-      .exec();
+    const enrollment = await this.enrollmentModel.findById(enrollmentId).exec();
     if (!enrollment) {
       throw new NotFoundException('Inscripción no encontrada');
     }
@@ -223,10 +217,7 @@ export class EnrollmentService {
       const course = await this.courseModel
         .findById(enrollment.courseId)
         .exec();
-      if (
-        !course ||
-        course.instructorId?.toString() !== userId?.toString()
-      ) {
+      if (!course || course.instructorId?.toString() !== userId?.toString()) {
         throw new ForbiddenException(
           'No tienes permisos para modificar inscripciones de este curso',
         );
@@ -268,13 +259,8 @@ export class EnrollmentService {
   ) {
     // Docente solo puede ver estudiantes de sus propios cursos
     if (userRoleName === 'Docente') {
-      const course = await this.courseModel
-        .findById(courseId)
-        .exec();
-      if (
-        !course ||
-        course.instructorId?.toString() !== userId?.toString()
-      ) {
+      const course = await this.courseModel.findById(courseId).exec();
+      if (!course || course.instructorId?.toString() !== userId?.toString()) {
         throw new ForbiddenException(
           'No tienes permisos para ver los estudiantes de este curso',
         );
@@ -391,7 +377,9 @@ export class EnrollmentService {
       .exec();
 
     if (!role) {
-      this.logger.warn('No se encontró el rol "Estudiante" en la base de datos');
+      this.logger.warn(
+        'No se encontró el rol "Estudiante" en la base de datos',
+      );
       return [];
     }
 

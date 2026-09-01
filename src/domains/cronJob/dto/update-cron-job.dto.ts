@@ -20,7 +20,10 @@ export class UpdateCronJobDto {
   @IsString()
   description?: string;
 
-  @ApiPropertyOptional({ description: 'Expresión cron (5 campos).', example: '0 0 * * *' })
+  @ApiPropertyOptional({
+    description: 'Expresión cron (5 campos).',
+    example: '0 0 * * *',
+  })
   @IsOptional()
   @IsString()
   expression?: string;
@@ -30,7 +33,9 @@ export class UpdateCronJobDto {
   @IsBoolean()
   active?: boolean;
 
-  @ApiPropertyOptional({ description: 'Configuración específica del tipo de job.' })
+  @ApiPropertyOptional({
+    description: 'Configuración específica del tipo de job.',
+  })
   @IsOptional()
   @IsObject()
   config?: Record<string, any>;

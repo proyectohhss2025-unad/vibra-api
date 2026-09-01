@@ -59,6 +59,14 @@ export class AuthService {
       return null;
     }
 
+    // Bloquear usuarios inactivos (ej: auto-registro desde la app mobile que aún
+    // no ha sido aprobado por un docente o administrador).
+    if (user.isActive === false) {
+      throw new UnauthorizedException(
+        'Tu cuenta está pendiente de aprobación. Un docente o administrador debe activarla antes de que puedas ingresar.',
+      );
+    }
+
     const result = user.toObject ? user.toObject() : { ...user };
     if (result && 'password' in result) {
       delete result.password;

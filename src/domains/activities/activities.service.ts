@@ -618,7 +618,18 @@ export class ActivitiesService {
       throw new NotFoundException('Activity not found');
     }
 
-    const results = responseDto.answers.map((answer) => {
+    // Soporta dos formatos de answers:
+    //  - Array de {questionId, answer} para respuestas de preguntas.
+    //  - Objeto de resultado de juego (score, timeSpent, wordsFound, etc.).
+    const answersList = Array.isArray(responseDto.answers)
+      ? (responseDto.answers as any[])
+      : [];
+    const gameResult =
+      !Array.isArray(responseDto.answers) && responseDto.answers
+        ? (responseDto.answers as Record<string, any>)
+        : null;
+
+    const results = answersList.map((answer) => {
       const question = activity.questions.find(
         (q: any) => q?.id.toString() == answer.questionId.toString(),
       );
@@ -629,24 +640,35 @@ export class ActivitiesService {
       };
     });
 
-    const totalScore = results.reduce(
-      (sum, result) => sum + (result.isCorrect ? result.points : 0),
-      0,
-    );
+    const totalScore = gameResult
+      ? Number(gameResult.score) || 0
+      : results.reduce(
+          (sum, result) => sum + (result.isCorrect ? result.points : 0),
+          0,
+        );
 
     const responseData = {
       user: new Types.ObjectId(userId),
       activity: new Types.ObjectId(activityId),
-      responses: responseDto.answers.map((answer) => ({
-        questionId: answer.questionId,
-        answer: answer.answer,
-        isCorrect: true, //results.find(r => r?.questionId === answer?.questionId)?.isCorrect || false,
-        responseTime: 10,
-      })),
+      responses: gameResult
+        ? [
+            {
+              questionId: 'game',
+              answer: JSON.stringify(gameResult),
+              isCorrect: true,
+              responseTime: Number(gameResult.timeSpent) || 10,
+            },
+          ]
+        : answersList.map((answer) => ({
+            questionId: answer.questionId,
+            answer: answer.answer,
+            isCorrect: true, //results.find(r => r?.questionId === answer?.questionId)?.isCorrect || false,
+            responseTime: 10,
+          })),
       score: totalScore,
       startTime: new Date(),
       endTime: new Date(),
-      timeSpent: 10,
+      timeSpent: gameResult ? Number(gameResult.timeSpent) || 10 : 10,
     };
 
     const userResponse = await this.userResponseModel
@@ -727,7 +749,64 @@ export class ActivitiesService {
     };
 
     if (type) {
-      query.type = type;
+      // 'evento_personal' es el tipo por defecto del schema: incluye también
+      // las actividades creadas antes de esta característica (sin campo type).
+      if (type === 'evento_personal') {
+        query.$or = [{ type: 'evento_personal' }, { type: { $exists: false } }];
+      } else {
+        query.type = type;
+      }
+    }
+
+    const skip = (page - 1) * limit;
+
+    const [data, total] = await Promise.all([
+      this.activityModel
+        .find(query)
+        .populate('emotion')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .exec(),
+      this.activityModel.countDocuments(query).exec(),
+    ]);
+
+    return { data, total, page, limit };
+  }
+
+  /**
+   * Find activities available for a user (active and not yet responded),
+   * optionally filtered by type. Se usa en las tabs de Retos y E-Personal
+   * del mobile para mostrar actividades disponibles (no el historial).
+   * @param userId - User ID
+   * @param filters - Optional filters (type, page, limit)
+   * @returns Paginated list of available activities for the user
+   */
+  async findAvailableByUser(
+    userId: string,
+    filters: { type?: string; page?: number; limit?: number } = {},
+  ): Promise<{ data: Activity[]; total: number; page: number; limit: number }> {
+    const { type, page = 1, limit = 10 } = filters;
+
+    // Actividades que el usuario ya respondió (se excluyen de las disponibles)
+    const respondedIds = await this.userResponseModel
+      .find({ user: new Types.ObjectId(userId) })
+      .distinct('activity')
+      .exec();
+
+    const query: any = {
+      isActive: true,
+      _id: { $nin: respondedIds },
+    };
+
+    if (type) {
+      // 'evento_personal' es el tipo por defecto del schema: incluye también
+      // las actividades creadas antes de esta característica (sin campo type).
+      if (type === 'evento_personal') {
+        query.$or = [{ type: 'evento_personal' }, { type: { $exists: false } }];
+      } else {
+        query.type = type;
+      }
     }
 
     const skip = (page - 1) * limit;

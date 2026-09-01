@@ -1,11 +1,4 @@
-import {
-  IsArray,
-  IsString,
-  IsNumber,
-  IsOptional,
-  ValidateNested,
-} from 'class-validator';
-import { Type } from 'class-transformer';
+import { IsString, IsNumber, IsOptional } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 class AnswerDto {
@@ -34,11 +27,10 @@ class AnswerDto {
 
 export class ActivityResponseDto {
   @ApiProperty({
-    description: 'Listado de respuestas del usuario para la actividad.',
+    description:
+      'Listado de respuestas del usuario. Array de {questionId, answer} para preguntas, u objeto de resultado para juegos (score, timeSpent, etc.).',
     type: [AnswerDto],
   })
-  @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => AnswerDto)
-  answers: AnswerDto[];
+  @IsOptional()
+  answers?: AnswerDto[] | Record<string, any>;
 }

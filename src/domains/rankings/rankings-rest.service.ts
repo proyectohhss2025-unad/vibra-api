@@ -63,6 +63,24 @@ export class RankingsRestService {
     return filter;
   }
 
+  /**
+   * Deduplica participantes por userId: un usuario puede tener varios
+   * participantes (uno por curso/inscripción) y aparecer repetido en el ranking.
+   * Se conserva el de mayor puntaje para que cada usuario tenga una sola posición.
+   */
+  private dedupeByUserId(participants: any[]): any[] {
+    const uniqueByUser = new Map<string, any>();
+    for (const p of participants) {
+      const uid = p.userId?.toString() || '';
+      if (!uid) continue;
+      const existing = uniqueByUser.get(uid);
+      if (!existing || (p.points || 0) > (existing.points || 0)) {
+        uniqueByUser.set(uid, p);
+      }
+    }
+    return Array.from(uniqueByUser.values());
+  }
+
   private async enrichParticipants(
     participants: any[],
     offset: number,
@@ -147,7 +165,10 @@ export class RankingsRestService {
       this.participantModel.countDocuments(filter),
     ]);
 
-    const data = await this.enrichParticipants(participants, offset);
+    const data = await this.enrichParticipants(
+      this.dedupeByUserId(participants),
+      offset,
+    );
 
     const response: RankingResponseDto = {
       data,
@@ -192,7 +213,10 @@ export class RankingsRestService {
       this.participantModel.countDocuments(filter),
     ]);
 
-    const data = await this.enrichParticipants(participants, offset);
+    const data = await this.enrichParticipants(
+      this.dedupeByUserId(participants),
+      offset,
+    );
 
     const response: RankingResponseDto = {
       data,
@@ -261,7 +285,10 @@ export class RankingsRestService {
       this.participantModel.countDocuments(filter),
     ]);
 
-    const data = await this.enrichParticipants(participants, offset);
+    const data = await this.enrichParticipants(
+      this.dedupeByUserId(participants),
+      offset,
+    );
 
     const response: RankingResponseDto = {
       data,

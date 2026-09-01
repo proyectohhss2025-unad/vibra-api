@@ -3,7 +3,6 @@ import {
   IsBoolean,
   IsDateString,
   IsEmail,
-  IsNotEmpty,
   IsOptional,
   IsString,
   Matches,
@@ -104,13 +103,14 @@ export class CreateUserDto {
   @IsOptional()
   keepSessionActive?: boolean;
 
-  @ApiProperty({
-    description: 'ID del rol asociado al usuario.',
+  @ApiPropertyOptional({
+    description:
+      'ID del rol asociado al usuario. En el registro público (app mobile) el backend fuerza el rol Estudiante y este campo se ignora.',
     example: '66c9cce47e6a95e98116c0ab',
   })
-  @IsNotEmpty({ message: 'El rol es obligatorio' })
+  @IsOptional()
   @IsString()
-  role: string;
+  role?: string;
 
   @ApiPropertyOptional({
     description: 'ID de la compañía/institución asociada al usuario.',

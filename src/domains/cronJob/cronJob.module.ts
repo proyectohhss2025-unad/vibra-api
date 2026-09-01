@@ -27,11 +27,7 @@ import {
     NotificationModule,
   ],
   controllers: [CronJobController],
-  providers: [
-    CronJobService,
-    CronJobExecutionService,
-    JobTypeRegistry,
-  ],
+  providers: [CronJobService, CronJobExecutionService, JobTypeRegistry],
   exports: [CronJobService, JobTypeRegistry],
 })
 export class CronJobModule implements NestModule {

@@ -1,102 +1,68 @@
 import {
   Controller,
   Get,
+  NotFoundException,
   Param,
   Post,
+  Req,
   Res,
   UploadedFile,
   UploadedFiles,
   UseInterceptors,
 } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
-import { Response } from 'express';
+import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
+import { Request, Response } from 'express';
 import { FileUploadService } from './file-upload.service';
-import { diskStorage } from 'multer';
-import { v4 as uuidv4 } from 'uuid';
+
+// MIME types permitidos por categoría
+const ALLOWED_MIME_TYPES = [
+  // Imágenes
+  'image/jpeg',
+  'image/png',
+  'image/gif',
+  'image/webp',
+  // Videos
+  'video/mp4',
+  'video/avi',
+  'video/mov',
+  'video/mpeg',
+  'video/quicktime',
+  'video/x-msvideo',
+  'video/x-flv',
+  'video/x-m4v',
+  'video/webm',
+  'video/x-ms-wmv',
+  // Audios
+  'audio/mpeg',
+  'audio/wav',
+  'audio/ogg',
+  'audio/aac',
+  'audio/x-m4a',
+  'audio/webm',
+  'audio/x-wav',
+  'audio/x-aiff',
+];
+
+const IMAGE_MIME_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+
+const MAX_FILE_SIZE = 200 * 1024 * 1024; // 200 MB (videos/audios largos)
+const MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5 MB (imágenes)
 
 @Controller('file-upload')
 export class FileUploadController {
   constructor(private readonly fileUploadService: FileUploadService) {}
 
-  // Filtro para videos y audios
-  private fileFilter(
-    req: Express.Request,
-    file: Express.Multer.File,
-    cb: (error: Error | null, acceptFile: boolean) => void,
-  ): any {
-    // Lista de MIME types permitidos para videos y audios
-    const allowedMIMETypes = [
-      // Videos
-      'video/mp4',
-      'video/avi',
-      'video/mov',
-      'video/mpeg',
-      'video/quicktime',
-      'video/x-msvideo',
-      'video/x-flv',
-      'video/x-m4v',
-      'video/webm',
-      'video/x-ms-wmv',
-      // Audios
-      'audio/mpeg',
-      'audio/wav',
-      'audio/ogg',
-      'audio/aac',
-      'audio/x-m4a',
-      'audio/webm',
-      'audio/x-wav',
-      'audio/x-aiff',
-    ];
-
-    // Verificar si el MIME type está permitido
-    if (allowedMIMETypes.includes(file.mimetype)) {
-      cb(null, true);
-    } else {
-      cb(new Error('El tipo de archivo no está permitido'), false);
-    }
-  }
-
-  /*@Post('upload')
-    @UseInterceptors(FileInterceptor('file'), {
-        storage: diskStorage({
-            destination: (req, file, cb) => {
-                cb(null, 'uploads/');
-            },
-            filename: (req, file, cb) => {
-                cb(null, `${uuidv4()}-${file.originalname}`);
-            },
-        }),
-        limits: {
-            fileSize: 5 * 1024 * 1024, // 5 MB
-        },
-        fileFilter: this.fileFilter.bind(this)
-    } as any)
-    async uploadFile(@UploadedFile() file: Express.Multer.File) {
-        const fileId = await this.fileUploadService.uploadFile(file);
-        return { fileId };
-    }*/
-
-  // Subida de un solo archivo
+  // Subida de un solo archivo (GridFS)
   @Post('upload')
   @UseInterceptors(
     FileInterceptor('file', {
-      storage: diskStorage({
-        destination: (req, file, cb) => {
-          cb(null, 'uploads/');
-        },
-        filename: (req, file, cb) => {
-          cb(null, `${uuidv4()}-${file.originalname}`);
-        },
-      }),
-      limits: {
-        fileSize: 5 * 1024 * 1024, // 5 MB
-      },
+      storage: memoryStorage(),
+      limits: { fileSize: MAX_FILE_SIZE },
       fileFilter: (req, file, cb) => {
-        const fileExtensionPattern =
-          /\.(mp4|avi|mov|mpeg|webm|jpg|jpeg|png|gif|webp)$/i;
-        if (!fileExtensionPattern.exec(file.originalname)) {
+        if (!ALLOWED_MIME_TYPES.includes(file.mimetype)) {
           return cb(
-            new Error('Se permiten solo archivos de audio, video e imágenes'),
+            new Error('Tipo de archivo no permitido (imagen, video o audio)'),
             false,
           );
         }
@@ -106,18 +72,22 @@ export class FileUploadController {
   )
   async uploadFile(@UploadedFile() file: Express.Multer.File) {
     try {
-      const fileInfo = {
-        filename: file.filename,
-        originalname: file.originalname,
-        path: file.path,
-      };
+      if (
+        IMAGE_MIME_TYPES.includes(file.mimetype) &&
+        file.size > MAX_IMAGE_SIZE
+      ) {
+        return {
+          message: 'Las imágenes no pueden superar los 5MB',
+          error: 'too_large',
+        };
+      }
 
-      const result = await this.fileUploadService.saveFile(fileInfo);
+      const fileId = await this.fileUploadService.uploadFile(file);
 
       return {
         message: 'El archivo se ha cargado exitosamente',
-        file: fileInfo,
-        id: result._id,
+        fileId,
+        url: `/file-upload/stream/${fileId}`,
       };
     } catch (error) {
       return {
@@ -127,25 +97,16 @@ export class FileUploadController {
     }
   }
 
+  // Subida de múltiples archivos (GridFS)
   @Post('uploadMultiple')
   @UseInterceptors(
-    FileInterceptor('files', {
-      storage: diskStorage({
-        destination: (req, file, cb) => {
-          cb(null, 'uploads/');
-        },
-        filename: (req, file, cb) => {
-          cb(null, `${uuidv4()}-${file.originalname}`);
-        },
-      }),
-      limits: {
-        fileSize: 5 * 1024 * 1024, // 5 MB
-      },
+    FilesInterceptor('files', 10, {
+      storage: memoryStorage(),
+      limits: { fileSize: MAX_FILE_SIZE },
       fileFilter: (req, file, cb) => {
-        const fileExtensionPattern = /\.(mp4|avi|mov|mpeg|mpeg)$/;
-        if (!fileExtensionPattern.exec(file.originalname)) {
+        if (!ALLOWED_MIME_TYPES.includes(file.mimetype)) {
           return cb(
-            new Error('Se permiten solo archivos de audio y video'),
+            new Error('Tipo de archivo no permitido (imagen, video o audio)'),
             false,
           );
         }
@@ -155,19 +116,14 @@ export class FileUploadController {
   )
   async uploadMultipleFiles(@UploadedFiles() files: Express.Multer.File[]) {
     try {
-      const filesInfo = files.map((file) => ({
-        filename: file.filename,
-        originalname: file.originalname,
-        path: file.path,
-      }));
-
-      // Guardar en MongoDB
-      const result = await this.fileUploadService.saveFiles(filesInfo);
+      const fileIds = await Promise.all(
+        files.map((f) => this.fileUploadService.uploadFile(f)),
+      );
 
       return {
         message: 'Files uploaded successfully',
-        files: filesInfo,
-        ids: result.map((file) => file._id),
+        fileIds,
+        urls: fileIds.map((id) => `/file-upload/stream/${id}`),
       };
     } catch (error) {
       return {
@@ -178,7 +134,49 @@ export class FileUploadController {
   }
 
   @Get('stream/:fileId')
-  async getFile(@Param('fileId') fileId: string, @Res() res: Response) {
+  async getFile(
+    @Param('fileId') fileId: string,
+    @Req() req: Request,
+    @Res() res: Response,
+  ) {
+    const meta = await this.fileUploadService.getFileMetadata(fileId);
+    if (!meta) {
+      throw new NotFoundException('Archivo no encontrado');
+    }
+
+    const size = meta.length;
+    const contentType = meta.contentType || 'application/octet-stream';
+    const range = req.headers.range;
+
+    // Soporte HTTP Range (necesario para seek/reproducción de video en web y mobile)
+    if (range) {
+      const match = /bytes=(\d*)-(\d*)/.exec(range);
+      if (match) {
+        const start = match[1] ? parseInt(match[1], 10) : 0;
+        const end = match[2] ? parseInt(match[2], 10) : size - 1;
+        const chunkSize = end - start + 1;
+
+        res.writeHead(206, {
+          'Content-Range': `bytes ${start}-${end}/${size}`,
+          'Accept-Ranges': 'bytes',
+          'Content-Length': chunkSize,
+          'Content-Type': contentType,
+        });
+        const stream = await this.fileUploadService.getFileStreamRange(
+          fileId,
+          start,
+          end + 1,
+        );
+        stream.pipe(res);
+        return;
+      }
+    }
+
+    res.writeHead(200, {
+      'Content-Length': size,
+      'Content-Type': contentType,
+      'Accept-Ranges': 'bytes',
+    });
     const stream = await this.fileUploadService.getFileStream(fileId);
     stream.pipe(res);
   }

@@ -35,22 +35,83 @@ export class UsersService {
     this.logger.log('UsersService initialized');
   }
 
-  async create(createUserDto: CreateUserDto): Promise<User> {
+  /**
+   * Crea un nuevo usuario.
+   *
+   * @param createUserDto - Datos del usuario a crear
+   * @param options - Opciones de creación
+   * @param options.isPublic - true si la petición llega sin sesión (registro público desde
+   *   la app mobile). En ese caso se fuerza `isActive: false` (pendiente de activación por
+   *   docente/admin) y el rol Estudiante, ignorando el rol enviado por el cliente.
+   */
+  async create(
+    createUserDto: CreateUserDto,
+    options?: { isPublic?: boolean },
+  ): Promise<User> {
     this.logger.log('Creating a new user...');
 
     // Sanitizar _id: si el frontend envía _id vacío (ej: formularios reutilizados),
     // eliminarlo para que MongoDB lo autogenere como ObjectId nativo.
-    const { _id, ...sanitizedDto } = (createUserDto as any);
+    const { _id, ...sanitizedDto } = createUserDto as any;
+
+    const isPublic = options?.isPublic ?? false;
+
+    let role = sanitizedDto.role;
+    let isActive: boolean | undefined;
+
+    if (isPublic) {
+      // Registro público (app mobile): forzar rol Estudiante y estado inactivo.
+      // El usuario NO puede auto-activarse ni auto-asignarse otro rol.
+      const estudianteRole = await this.roleModel
+        .findOne({
+          name: { $regex: /^estudiante$/i },
+          deleted: { $ne: true },
+        })
+        .exec();
+      if (!estudianteRole) {
+        throw new BadRequestException(
+          'Rol Estudiante no configurado en el sistema. Contacte al administrador.',
+        );
+      }
+      role = estudianteRole._id.toString();
+      isActive = false;
+    } else if (!role) {
+      throw new BadRequestException(
+        'El rol es obligatorio para crear un usuario.',
+      );
+    }
 
     const hashedPassword = await bcrypt.hash(sanitizedDto.password, 10);
     const presets = this.getDefaultPresetGallery();
     const createdUser = new this.userModel({
       ...sanitizedDto,
+      role,
+      ...(isActive !== undefined ? { isActive } : {}),
       password: hashedPassword,
       avatar: sanitizedDto.avatar || 'default-avatar.svg',
       avatarGallery: presets,
     });
-    const savedUser = await createdUser.save();
+
+    let savedUser: User;
+    try {
+      savedUser = await createdUser.save();
+    } catch (error: any) {
+      // Error 11000 = violación de índice único (username, documentNumber o email duplicado)
+      if (error?.code === 11000) {
+        const duplicatedField = Object.keys(error?.keyValue || {})[0];
+        const fieldMessages: Record<string, string> = {
+          username: 'El nombre de usuario ya está registrado. Elige otro.',
+          documentNumber:
+            'El número de documento ya está registrado en el sistema.',
+          email: 'El correo electrónico ya está registrado. Usa otro.',
+        };
+        throw new ConflictException(
+          fieldMessages[duplicatedField] ||
+            'Ya existe un usuario con esos datos. Verifica e intenta de nuevo.',
+        );
+      }
+      throw error;
+    }
 
     // Sincronizar el documentNumber del nuevo usuario con todas las configs activas
     await this.syncUserWithConfigs(
@@ -317,7 +378,7 @@ export class UsersService {
         select: '_id name',
       })
       .select(
-        'name username password documentNumber documentType address phoneNumber email keepSessionActive role company avatar gender birthDate isLogged totalScore serial',
+        'name username password documentNumber documentType address phoneNumber email keepSessionActive role company avatar gender birthDate isLogged totalScore serial isActive',
       )
 
       .exec();
@@ -684,9 +745,7 @@ export class UsersService {
 
       await user.save();
 
-      this.logger.log(
-        `User with ID ${id} active status updated to ${active}`,
-      );
+      this.logger.log(`User with ID ${id} active status updated to ${active}`);
       return { message: 'User active status updated', user };
     } catch (error) {
       if (error instanceof NotFoundException) {

@@ -11,13 +11,15 @@ import {
 } from 'class-validator';
 
 export class CreateEmotionDto {
-  @ApiProperty({
-    description: 'Identificador lógico único de la emoción.',
+  @ApiPropertyOptional({
+    description:
+      'Identificador lógico único de la emoción (slug). Si no se envía, se genera automáticamente a partir del nombre.',
     example: 'EMO-001',
   })
+  @IsOptional()
   @IsString()
   @IsNotEmpty()
-  id: string;
+  id?: string;
 
   @ApiProperty({
     description: 'Nombre de la emoción.',

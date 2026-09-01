@@ -21,23 +21,50 @@ export class EmotionsService {
 
   async create(createEmotionDto: CreateEmotionDto): Promise<Emotion> {
     this.logger.log(`Creating a new emotion...`);
-    const createdEmotion = new this.emotionModel({ ...createEmotionDto });
+    const payload = { ...createEmotionDto };
+    // Si no se envía un id (slug), se genera automáticamente a partir del nombre
+    // para mantener la consistencia con los documentos existentes (joy, sadness...).
+    if (!payload.id || payload.id.trim() === '') {
+      payload.id = this.generateSlug(payload.name);
+    }
+    const createdEmotion = new this.emotionModel(payload);
     return createdEmotion.save();
+  }
+
+  /**
+   * Genera un slug legible a partir del nombre de la emoción.
+   * Normaliza tildes, espacios y caracteres especiales, y agrega
+   * un sufijo aleatorio para evitar colisiones con el índice único.
+   */
+  private generateSlug(name: string): string {
+    const base = name
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/(^-|-$)/g, '')
+      .slice(0, 40);
+    const suffix = Math.random().toString(36).substring(2, 8);
+    return `${base}-${suffix}`;
   }
 
   async findAll(
     page: number = 1,
     limit: number = 10,
+    isActive: string = 'all',
   ): Promise<{ data: Emotion[]; total: number }> {
     this.logger.log('Fetching paginated emotions...');
     const skip = (page - 1) * limit;
+    const query: any = {};
+    if (isActive === 'active') query.isActive = true;
+    else if (isActive === 'inactive') query.isActive = false;
     const data = await this.emotionModel
-      .find()
+      .find(query)
       .skip(skip)
       .limit(limit)
       .sort({ createdAt: -1 })
       .exec();
-    const total = await this.emotionModel.countDocuments().exec();
+    const total = await this.emotionModel.countDocuments(query).exec();
     return { data, total };
   }
 

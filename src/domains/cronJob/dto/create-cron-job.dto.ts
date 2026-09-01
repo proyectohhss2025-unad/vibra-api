@@ -10,7 +10,10 @@ import {
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateCronJobDto {
-  @ApiProperty({ description: 'Nombre descriptivo del job.', example: 'Backup diario de BD' })
+  @ApiProperty({
+    description: 'Nombre descriptivo del job.',
+    example: 'Backup diario de BD',
+  })
   @IsString()
   name: string;
 
@@ -21,16 +24,25 @@ export class CreateCronJobDto {
   @IsString()
   jobType: string;
 
-  @ApiPropertyOptional({ description: 'Descripción del job.', example: 'Realiza un respaldo completo de la base de datos' })
+  @ApiPropertyOptional({
+    description: 'Descripción del job.',
+    example: 'Realiza un respaldo completo de la base de datos',
+  })
   @IsOptional()
   @IsString()
   description?: string;
 
-  @ApiProperty({ description: 'Expresión cron (5 campos).', example: '0 0 * * *' })
+  @ApiProperty({
+    description: 'Expresión cron (5 campos).',
+    example: '0 0 * * *',
+  })
   @IsString()
   expression: string;
 
-  @ApiPropertyOptional({ description: 'Indica si el job inicia activo.', default: true })
+  @ApiPropertyOptional({
+    description: 'Indica si el job inicia activo.',
+    default: true,
+  })
   @IsOptional()
   @IsBoolean()
   active?: boolean;
@@ -43,7 +55,10 @@ export class CreateCronJobDto {
   @IsObject()
   config?: Record<string, any>;
 
-  @ApiPropertyOptional({ description: 'Reintentar en caso de fallo.', default: false })
+  @ApiPropertyOptional({
+    description: 'Reintentar en caso de fallo.',
+    default: false,
+  })
   @IsOptional()
   @IsBoolean()
   retryOnFailure?: boolean;
@@ -55,12 +70,18 @@ export class CreateCronJobDto {
   @Max(10)
   maxRetries?: number;
 
-  @ApiPropertyOptional({ description: 'Notificar en caso de error.', default: false })
+  @ApiPropertyOptional({
+    description: 'Notificar en caso de error.',
+    default: false,
+  })
   @IsOptional()
   @IsBoolean()
   notifyOnError?: boolean;
 
-  @ApiPropertyOptional({ description: 'Notificar en caso de éxito.', default: false })
+  @ApiPropertyOptional({
+    description: 'Notificar en caso de éxito.',
+    default: false,
+  })
   @IsOptional()
   @IsBoolean()
   notifyOnSuccess?: boolean;

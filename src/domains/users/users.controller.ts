@@ -220,11 +220,14 @@ export class UsersController {
     return { message: 'Evento emitido' };
   }
 
+  @BypassPermission()
   @Post('create')
   @ApiOperation({
     summary: 'Crear un usuario',
     description:
-      'Crea un nuevo usuario para el dashboard de administración de participación estudiantil (Vibra). La contraseña se almacena con hash.',
+      'Crea un nuevo usuario para el dashboard de administración de participación estudiantil (Vibra). La contraseña se almacena con hash. ' +
+      'Es un endpoint público: si la petición llega sin sesión (registro desde la app mobile), el usuario se crea en estado inactivo ' +
+      'con rol Estudiante y debe ser activado por un docente o administrador desde el dashboard web.',
   })
   @ApiBody({
     type: CreateUserDto,
@@ -235,18 +238,23 @@ export class UsersController {
       'Usuario creado correctamente. Retorna el username del usuario creado.',
     type: UserCreateResponseDto,
   })
-  async create(@Body() createUserDto: CreateUserDto) {
-    return this.usersService.create(createUserDto).then((response: User) => {
-      if (response) {
-        const data = {
-          message: `Se ha registrado un nuevo usuario al sistema, Usuario: ${response.username}`,
-        };
-        this.eventsGateway.emitEvent(data);
-        return { username: response.username };
-      } else {
-        return null;
-      }
-    });
+  async create(@Body() createUserDto: CreateUserDto, @Request() req: any) {
+    // Registro público: no hay usuario autenticado → el usuario se crea inactivo
+    // (pendiente de activación por docente/admin) y con rol Estudiante forzado.
+    const isPublicRegistration = !req.user;
+    return this.usersService
+      .create(createUserDto, { isPublic: isPublicRegistration })
+      .then((response: User) => {
+        if (response) {
+          const data = {
+            message: `Se ha registrado un nuevo usuario al sistema, Usuario: ${response.username}`,
+          };
+          this.eventsGateway.emitEvent(data);
+          return { username: response.username };
+        } else {
+          return null;
+        }
+      });
   }
 
   @Patch('active')
@@ -257,7 +265,10 @@ export class UsersController {
       properties: {
         _id: { type: 'string', description: 'ID del usuario' },
         active: { type: 'boolean', description: 'Estado activo/inactivo' },
-        editedBy: { type: 'string', description: 'Usuario que realizó el cambio' },
+        editedBy: {
+          type: 'string',
+          description: 'Usuario que realizó el cambio',
+        },
       },
     },
   })
