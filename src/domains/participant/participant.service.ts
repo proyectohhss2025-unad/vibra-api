@@ -1,21 +1,22 @@
 import {
+  ConflictException,
   Injectable,
   NotFoundException,
-  ConflictException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { parse } from 'csv-parse';
 import { readFileSync } from 'fs';
 import { Model, PipelineStage, Types } from 'mongoose';
-import { ActivityCompletion } from '../activity-completions/schemas/activity-completion.schema';
 import { WeeklySchedule } from '../activities/schemas/weekly-schedule.schema';
+import { ActivityCompletion } from '../activity-completions/schemas/activity-completion.schema';
+import { Company } from '../company/schemas/company.schema';
+import { User } from '../users/schemas/user.schema';
 import { CreateParticipantDto } from './dto/create-participant.dto';
 import {
   UpdateParticipantDto,
   UpdatePointsDto,
 } from './dto/update-participant.dto';
 import { Participant, calculateLevel } from './schemas/participant.schema';
-import { Company } from '../company/schemas/company.schema';
 
 @Injectable()
 export class ParticipantService {
@@ -28,6 +29,8 @@ export class ParticipantService {
     private companyModel: Model<Company>,
     @InjectModel(ActivityCompletion.name)
     private completionModel: Model<ActivityCompletion>,
+    @InjectModel(User.name)
+    private userModel: Model<User>,
   ) {}
 
   // ─── NUEVO: Crear participante desde registro de User ───
@@ -53,14 +56,42 @@ export class ParticipantService {
   }
 
   // ─── NUEVO: Obtener participante por userId ───
-  async findByUserId(userId: string) {
-    const participant = await this.participantModel.findOne({ userId });
+  /**
+   * Participante del usuario, **con su nombre real**.
+   *
+   * El móvil saludaba con «¡Hola, participante!» y mostraba «@participante»
+   * porque `POST /api/auth/login` devuelve solo `{ access_token }`: el cliente
+   * nunca tuvo un nombre y el participante se creaba con el literal
+   * `nickname: 'participante'` (DEC-10, opción b). Aquí se añade `studentName`
+   * y `username` tomados del usuario, sin cambiar el tipo de `userId` para no
+   * romper a quien lo compare con un string.
+   */
+  async findByUserId(
+    userId: string,
+  ): Promise<Record<string, any>> {
+    const participant = await this.participantModel
+      .findOne({ userId })
+      .lean()
+      .exec();
     if (!participant) {
       throw new NotFoundException(
         'Participante no encontrado para este usuario',
       );
     }
-    return participant;
+
+    const user = await this.userModel
+      .findById(userId)
+      .select('name username email avatar')
+      .lean()
+      .exec();
+
+    return {
+      ...participant,
+      studentName: (user as any)?.name ?? null,
+      username: (user as any)?.username ?? null,
+      email: (user as any)?.email ?? null,
+      userAvatar: (user as any)?.avatar ?? null,
+    };
   }
 
   // ─── Obtener historial de actividad por día ───
@@ -74,19 +105,27 @@ export class ParticipantService {
     const sinceDate = new Date();
     sinceDate.setDate(sinceDate.getDate() - days);
 
+    // A-05: el gráfico «Actividades completadas» se alimentaba de
+    // `weeklySchedule.days[].status`, que es el CALENDARIO PLANIFICADO, no lo
+    // que el participante hizo. Si la programación no estaba marcada como
+    // completada, el gráfico salía vacío aunque hubiera decenas de actividades
+    // entregadas. La fuente real es `activitycompletions`.
     const pipeline: PipelineStage[] = [
-      { $match: { participants: new Types.ObjectId(userId) } },
-      { $unwind: '$days' },
       {
         $match: {
-          'days.status': 'completed',
-          'days.date': { $gte: sinceDate },
+          participant: new Types.ObjectId(String(participant._id)),
+          completedAt: { $gte: sinceDate },
         },
       },
       {
         $group: {
           _id: {
-            $dateToString: { format: '%Y-%m-%d', date: '$days.date' },
+            $dateToString: {
+              format: '%Y-%m-%d',
+              date: '$completedAt',
+              // El día se cuenta en hora de Colombia, igual que en los reportes.
+              timezone: 'America/Bogota',
+            },
           },
           count: { $sum: 1 },
         },
@@ -101,14 +140,16 @@ export class ParticipantService {
       },
     ];
 
-    const history = await this.weeklyScheduleModel.aggregate(pipeline);
+    const history = await this.completionModel.aggregate(pipeline);
 
-    // Rellenar días sin actividad con count=0
+    // Rellenar días sin actividad con count=0, con la misma referencia horaria.
     const result: { date: string; count: number }[] = [];
     for (let i = days; i >= 0; i--) {
       const date = new Date();
       date.setDate(date.getDate() - i);
-      const dateStr = date.toISOString().split('T')[0];
+      const dateStr = date.toLocaleDateString('en-CA', {
+        timeZone: 'America/Bogota',
+      });
       const found = history.find((h) => h.date === dateStr);
       result.push({ date: dateStr, count: found ? found.count : 0 });
     }
@@ -199,6 +240,18 @@ export class ParticipantService {
     return { leaderboard, totalCount };
   }
 
+  /**
+   * Actualiza los puntos del participante dueño de la sesión.
+   * Evita que el cliente envíe el `_id` del participante.
+   */
+  async updatePointsByUserId(userId: string, dto: UpdatePointsDto) {
+    const participant = await this.participantModel.findOne({ userId });
+    if (!participant) {
+      throw new NotFoundException('Participante no encontrado');
+    }
+    return this.updatePoints(String(participant._id), dto);
+  }
+
   // ─── NUEVO: Actualizar puntos con lógica de streak y level ───
   async updatePoints(id: string, dto: UpdatePointsDto) {
     const participant = await this.participantModel.findById(id);
@@ -206,8 +259,8 @@ export class ParticipantService {
       throw new NotFoundException('Participante no encontrado');
     }
 
-    // Actualizar puntos
-    participant.points += dto.pointsIncrement;
+    // Actualizar puntos (enteros: el cliente recibe `points` y lo pinta tal cual)
+    participant.points = Math.round(participant.points + dto.pointsIncrement);
 
     // Recalcular level
     participant.level = calculateLevel(participant.points);
@@ -299,7 +352,7 @@ export class ParticipantService {
 
   // ─── LEGACY: Listar con paginación ───
   async findAll(query: any) {
-    const { rows, page, dateFilter, limit } = query;
+    const { rows, page, dateFilter, limit, searchTerm } = query;
     const filter: any = {};
 
     if (dateFilter) {
@@ -312,16 +365,87 @@ export class ParticipantService {
       }
     }
 
+    // Búsqueda unificada: campos del participante + datos del usuario asociado
+    // (nombre completo, usuario, correo y documento). Reemplaza al endpoint
+    // legacy `/api/participants/search` para el panel web.
+    const term = typeof searchTerm === 'string' ? searchTerm.trim() : '';
+    if (term && term.toLowerCase() !== 'all') {
+      const regex = this.buildRegex(term);
+      const userIds = await this.findUserIdsByTerm(regex);
+      filter.$or = [
+        { nickname: regex },
+        { name: regex },
+        { email: regex },
+        { phoneNumber: regex },
+        { nit: regex },
+        { userId: { $in: userIds } },
+      ];
+    }
+
     const recordLimit = limit ? parseInt(limit) : rows ? parseInt(rows) : 10;
     const skip = rows && page ? recordLimit * (parseInt(page) - 1) : 0;
 
-    return {
-      participants: await this.participantModel
+    const [participants, count] = await Promise.all([
+      this.participantModel
         .find(filter)
         .skip(skip)
         .limit(recordLimit)
-        .sort({ name: 1 }),
-      count: await this.participantModel.countDocuments(filter),
+        .sort({ name: 1 })
+        .populate('userId', 'name username')
+        .lean()
+        .exec(),
+      this.participantModel.countDocuments(filter),
+    ]);
+
+    return {
+      participants: participants.map((p: any) => this.toListResponse(p)),
+      count,
+    };
+  }
+
+  /**
+   * Regex insensible a mayúsculas y seguro ante caracteres especiales
+   * (`(`, `+`, `*`, etc.) que de otro modo romperían la consulta.
+   */
+  private buildRegex(term: string): RegExp {
+    return new RegExp(term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+  }
+
+  /**
+   * Ids de usuarios que coinciden con el término (nombre completo, usuario,
+   * correo o documento). Se usa para filtrar participantes por su estudiante.
+   */
+  private async findUserIdsByTerm(regex: RegExp): Promise<Types.ObjectId[]> {
+    const users = await this.participantModel.db
+      .collection('users')
+      .find(
+        {
+          $or: [
+            { name: regex },
+            { username: regex },
+            { email: regex },
+            { documentNumber: regex },
+          ],
+        },
+        { projection: { _id: 1 } },
+      )
+      .limit(2000)
+      .toArray();
+
+    return users.map((u: any) => u._id);
+  }
+
+  /**
+   * Normaliza un participante para listados: deja `userId` como string
+   * (el `populate` lo convierte en documento) y expone `studentName`
+   * con el nombre completo del usuario asociado.
+   */
+  private toListResponse(participant: any) {
+    const user = participant?.userId;
+    return {
+      ...participant,
+      userId: user?._id ? String(user._id) : user ? String(user) : '',
+      studentName: user?.name ?? null,
     };
   }
 
@@ -401,7 +525,7 @@ export class ParticipantService {
 
   // ─── LEGACY: Buscar por texto ───
   async search(searchTerm: string) {
-    const regex = new RegExp(searchTerm, 'i');
+    const regex = this.buildRegex(searchTerm);
     const query = {
       $or: [
         { name: { $regex: regex } },
@@ -413,14 +537,37 @@ export class ParticipantService {
       ],
     };
 
-    return this.participantModel
+    const participants = await this.participantModel
       .find(searchTerm === 'all' ? {} : query)
-      .sort({ name: -1 });
+      .sort({ name: -1 })
+      .populate('userId', 'name username')
+      .lean()
+      .exec();
+
+    return participants.map((p: any) => this.toListResponse(p));
   }
 
   // ─── LEGACY: Obtener por _id ───
   async findOne(id: string) {
     return this.participantModel.findById(id);
+  }
+
+  /**
+   * Devuelve el `userId` dueño de un participante (para validar propiedad).
+   * `null` si el participante no existe o el id no es válido.
+   */
+  async getOwnerId(id: string): Promise<string | null> {
+    if (!Types.ObjectId.isValid(id)) {
+      return null;
+    }
+
+    const participant = await this.participantModel
+      .findById(id)
+      .select('userId')
+      .lean()
+      .exec();
+
+    return participant?.userId ? String(participant.userId) : null;
   }
 
   // ─── LEGACY: Actualizar ───

@@ -1,34 +1,34 @@
 import {
-  Controller,
-  Get,
-  Post,
-  Put,
-  Patch,
-  Delete,
   Body,
-  Param,
-  Query,
+  Controller,
+  Delete,
+  Get,
   HttpCode,
   HttpStatus,
+  Param,
+  Patch,
+  Post,
+  Put,
+  Query,
+  Req,
 } from '@nestjs/common';
 import {
-  ApiTags,
-  ApiOperation,
-  ApiResponse,
-  ApiQuery,
-  ApiParam,
   ApiBody,
-  ApiOkResponse,
   ApiCreatedResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiParam,
+  ApiQuery,
+  ApiResponse,
+  ApiTags,
 } from '@nestjs/swagger';
-import { BypassPermission } from 'src/infrastructure/auth/bypass-permission.decorator';
+import { assertOwnership } from 'src/infrastructure/auth/ownership';
+import { RequireAuthenticated } from 'src/infrastructure/auth/require-authenticated.decorator';
 import { RequirePermission } from 'src/infrastructure/auth/require-permission.decorator';
-import { TestService } from './test.service';
 import { CreateTestDto } from './dto/create-test.dto';
 import { UpdateTestDto } from './dto/update-test.dto';
 import { Test } from './schemas/test.schema';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { TestService } from './test.service';
 
 class TestResponseDto {
   _id: string;
@@ -57,7 +57,7 @@ class TestsPaginatedDto {
 
 @ApiTags('Tests')
 @Controller('api/tests')
-@RequirePermission('15')
+@RequirePermission('P-EVAL-001')
 export class TestController {
   constructor(private readonly testService: TestService) {}
 
@@ -72,7 +72,7 @@ export class TestController {
     return this.testService.create(createTestDto);
   }
 
-  @RequirePermission('P-EST-001')
+  @RequirePermission(['P-EST-001', 'P-DOC-004'])
   @Get()
   @ApiOperation({ summary: 'Listar todos los tests (paginado)' })
   @ApiQuery({ name: 'page', required: false, example: 1 })
@@ -89,7 +89,7 @@ export class TestController {
     return this.testService.findAll(page, limit, search, category);
   }
 
-  @RequirePermission('P-EST-001')
+  @RequireAuthenticated()
   @Get('by-testid/:testId')
   @ApiOperation({ summary: 'Obtener un test por su testId (string)' })
   @ApiParam({
@@ -102,7 +102,7 @@ export class TestController {
     return this.testService.findByTestId(testId);
   }
 
-  @RequirePermission('P-EST-001')
+  @RequireAuthenticated()
   @Get('pending-by-type')
   @ApiOperation({
     summary:
@@ -114,13 +114,20 @@ export class TestController {
     enum: ['initial', 'final'],
     description: 'Tipo de test',
   })
-  @ApiQuery({ name: 'userId', required: true, description: 'ID del usuario' })
+  @ApiQuery({
+    name: 'userId',
+    required: false,
+    description: 'ID del usuario (opcional: por defecto el de la sesión)',
+  })
   @ApiOkResponse({ description: 'Lista de tests pendientes' })
   async findPendingByType(
+    @Req() req: any,
     @Query('type') type: 'initial' | 'final',
-    @Query('userId') userId: string,
+    @Query('userId') userId?: string,
   ) {
-    return this.testService.findPendingByType(type, userId);
+    const ownerId = userId || req.user?.sub;
+    assertOwnership(req, ownerId);
+    return this.testService.findPendingByType(type, ownerId);
   }
 
   @RequirePermission('P-EST-001')

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, Req } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiBody,
@@ -9,6 +9,8 @@ import {
   ApiQuery,
   ApiTags,
 } from '@nestjs/swagger';
+import { assertOwnership } from 'src/infrastructure/auth/ownership';
+import { RequireAuthenticated } from 'src/infrastructure/auth/require-authenticated.decorator';
 import { RequirePermission } from 'src/infrastructure/auth/require-permission.decorator';
 import { ActivityCompletionsService } from './activity-completions.service';
 import { CreateCompletionDto } from './dto/create-completion.dto';
@@ -21,7 +23,7 @@ export class ActivityCompletionsController {
     private readonly completionsService: ActivityCompletionsService,
   ) {}
 
-  @RequirePermission('P-EST-004')
+  @RequireAuthenticated()
   @Post()
   @ApiOperation({
     summary: 'Registrar completación de actividad',
@@ -30,7 +32,12 @@ export class ActivityCompletionsController {
   })
   @ApiBody({ type: CreateCompletionDto })
   @ApiCreatedResponse({ description: 'Completación registrada.' })
-  create(@Body() dto: CreateCompletionDto) {
+  async create(@Req() req: any, @Body() dto: CreateCompletionDto) {
+    // El participante debe pertenecer a la sesión
+    const ownerId = await this.completionsService.getParticipantOwnerId(
+      dto.participant,
+    );
+    assertOwnership(req, ownerId);
     return this.completionsService.create(dto);
   }
 

@@ -1,4 +1,7 @@
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Transform, Type } from 'class-transformer';
 import {
+  IsArray,
   IsBoolean,
   IsEnum,
   IsNotEmpty,
@@ -7,8 +10,7 @@ import {
   IsString,
   ValidateNested,
 } from 'class-validator';
-import { Type } from 'class-transformer';
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { GameDto } from './game.dto';
 
 class ResourceDto {
   @ApiProperty({
@@ -169,12 +171,15 @@ export class CreateActivityDto {
 
   @ApiPropertyOptional({
     description: 'Tipo de actividad',
-    enum: ['reto', 'evento_personal', 'actividad_pares', 'otro'],
+    enum: ['reto', 'evento_personal', 'actividad_diaria', 'otro'],
     example: 'evento_personal',
     default: 'evento_personal',
   })
   @IsOptional()
-  @IsEnum(['reto', 'evento_personal', 'actividad_pares', 'otro'])
+  @Transform(({ value }) =>
+    value === 'actividad_pares' ? 'actividad_diaria' : value,
+  )
+  @IsEnum(['reto', 'evento_personal', 'actividad_diaria', 'otro'])
   type?: string;
 
   @ApiPropertyOptional({
@@ -189,6 +194,7 @@ export class CreateActivityDto {
 
   @ApiPropertyOptional({
     description: 'Configuración de juegos incluidos en la actividad.',
+    type: [GameDto],
     example: [
       {
         type: 'WordSearch',
@@ -198,11 +204,10 @@ export class CreateActivityDto {
     ],
   })
   @IsOptional()
-  games?: Array<{
-    type: 'WordSearch' | 'MatchingConcepts' | 'DiceGame' | 'EmotionBox';
-    config: Record<string, any>;
-    order: number;
-  }>;
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => GameDto)
+  games?: GameDto[];
 }
 
 export class UpdateActivityDto extends CreateActivityDto {

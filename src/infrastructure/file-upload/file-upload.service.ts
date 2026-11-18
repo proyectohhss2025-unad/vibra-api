@@ -1,7 +1,9 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { InjectConnection } from '@nestjs/mongoose';
 import { GridFSBucket, ObjectId } from 'mongodb';
-import mongoose, { Connection } from 'mongoose';
+// `Connection` no es un export detectable de `mongoose` (CommonJS) bajo módulos
+// ES: se usa el tipo del espacio de nombres.
+import mongoose from 'mongoose';
 import { Readable } from 'stream';
 import { ImageCompressionService } from '../image-compression/image-compression.service';
 
@@ -10,7 +12,7 @@ export class FileUploadService {
   private gridFSBucket: GridFSBucket;
 
   constructor(
-    @InjectConnection() private readonly connection: Connection,
+    @InjectConnection() private readonly connection: mongoose.Connection,
     private readonly imageCompressionService: ImageCompressionService,
   ) {
     this.gridFSBucket = new GridFSBucket(this.connection.db);
@@ -37,11 +39,12 @@ export class FileUploadService {
 
   /**
    * Obtiene la metadata de un archivo de GridFS (tamaño y contentType).
-   * Retorna null si el archivo no existe.
+   * Retorna null si el archivo no existe o el id no es válido.
    */
   async getFileMetadata(
     fileId: string,
   ): Promise<{ length: number; contentType?: string } | null> {
+    if (!ObjectId.isValid(fileId)) return null;
     const objectId = new ObjectId(fileId);
     const db = this.connection.db;
     const fileDoc = await db.collection('fs.files').findOne({ _id: objectId });

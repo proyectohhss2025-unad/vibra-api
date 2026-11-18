@@ -106,7 +106,12 @@ export class AdminService {
    * @param title - Notification title
    */
   private async createNotification(title: string): Promise<void> {
-    await this.notificationService.createNotification(title);
+    await this.notificationService.createSystemNotificationsForRoles({
+      roles: ['Super Admin', 'Administrador', 'Docente'],
+      title,
+      message: title,
+      event: `ADMIN_ALERT:${title}:${new Date().toISOString().slice(0, 10)}`,
+    });
   }
 
   /**

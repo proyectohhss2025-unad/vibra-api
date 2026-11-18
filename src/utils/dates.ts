@@ -42,6 +42,40 @@ export const formatDate = (date: Date | null, format: string): string => {
   return moment(date).format(format); // Customize format as needed
 };
 
+/**
+ * Obtiene el rango lunes-domingo de una semana relativa a la actual en Colombia.
+ *
+ * @param weeksOffset - 0 = semana actual, 1 = próxima semana, -1 = anterior.
+ *
+ * Trabaja con la fecha calendario de Colombia y hace la aritmética de días en
+ * UTC para evitar corrimientos por zona horaria. Devuelve fechas `YYYY-MM-DD`.
+ */
+export function getColombiaWeekRange(weeksOffset = 0): {
+  from: string;
+  to: string;
+} {
+  const todayStr = new Date().toLocaleDateString('en-CA', {
+    timeZone: COLOMBIA_TZ,
+  });
+  const [year, month, day] = todayStr.split('-').map(Number);
+
+  // Fecha calendario estable (mediodía UTC) para sumar/restar días.
+  const date = new Date(Date.UTC(year, month - 1, day, 12));
+  const dayOfWeek = date.getUTCDay(); // 0 = domingo … 6 = sábado
+  const diffToMonday = (dayOfWeek + 6) % 7;
+
+  const monday = new Date(date);
+  monday.setUTCDate(
+    date.getUTCDate() - diffToMonday + Math.trunc(weeksOffset) * 7,
+  );
+
+  const sunday = new Date(monday);
+  sunday.setUTCDate(monday.getUTCDate() + 6);
+
+  const toStr = (value: Date) => value.toISOString().slice(0, 10);
+  return { from: toStr(monday), to: toStr(sunday) };
+}
+
 export const getDaysInArrears = (expirationDate: Date): number => {
   try {
     const today = new Date();

@@ -61,6 +61,33 @@ export class Notification extends Document {
 
   @Prop({ type: String })
   event?: string;
+
+  /**
+   * Acción que el cliente puede ejecutar desde la notificación
+   * (p. ej. `OPEN_DAILY_ACTIVITIES`).
+   */
+  @Prop({ type: String })
+  action?: string;
+
+  /** Etiqueta visible del botón de acción. */
+  @Prop({ type: String })
+  actionLabel?: string;
+
+  /** Metadatos para la acción (filtros, rango de fechas, etc.). */
+  @Prop({ type: Object })
+  metadata?: Record<string, any>;
 }
 
 export const NotificationSchema = SchemaFactory.createForClass(Notification);
+
+// Búsqueda idempotente de notificaciones de sistema por evento
+// (p. ej. DAILY_COVERAGE:<fecha>). Sparse: la mayoría no tiene `event`.
+NotificationSchema.index({ event: 1 }, { sparse: true });
+
+// Bandeja por usuario: listado ordenado, no leídas y avisos dirigidos.
+NotificationSchema.index({ user: 1, createdAt: -1 });
+NotificationSchema.index({ user: 1, isRead: 1 });
+NotificationSchema.index(
+  { user: 1, event: 1 },
+  { sparse: true },
+);

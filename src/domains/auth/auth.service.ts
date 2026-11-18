@@ -1,16 +1,23 @@
-import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
+import {
+  HttpException,
+  HttpStatus,
+  Injectable,
+  Logger,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { InjectModel } from '@nestjs/mongoose';
+import bcrypt from 'bcryptjs';
 import { Model, Types } from 'mongoose';
-import * as bcrypt from 'bcryptjs';
 import { AppGateway } from 'src/infrastructure/sockets/appGateway.gateway';
-import { User } from '../users/schemas/user.schema';
-import { UsersService } from '../users/users.service';
 import { PermissionTemplate } from '../permissionTemplates/schemas/permissionTemplate.schema';
 import { Permission } from '../permissions/schemas/permission.schema';
 import { UserPermission } from '../userPermissions/schemas/userPermission.schema';
+import { User } from '../users/schemas/user.schema';
+import { UsersService } from '../users/users.service';
 import { LoginDto } from './dto/login.dto';
-import { ChangePasswordDto } from './dto/change-password.dto';
+import { LoginProtectionService } from './login-protection.service';
 
 // Interfaz para almacenar tokens invalidados
 interface InvalidatedToken {
@@ -26,6 +33,13 @@ export class AuthService {
   // Mapa para almacenar tokens invalidados por userId
   private invalidatedTokens: Map<string, InvalidatedToken> = new Map();
 
+  // Hash de relleno: iguala el tiempo de respuesta cuando el usuario no existe
+  // y evita enumeración de cuentas por diferencias de latencia.
+  private readonly dummyPasswordHash = bcrypt.hashSync(
+    'vibra-login-dummy-password',
+    10,
+  );
+
   // Tiempo de expiración para limpieza de tokens invalidados (24 horas en ms)
   private readonly TOKEN_CLEANUP_INTERVAL = 24 * 60 * 60 * 1000;
 
@@ -33,6 +47,7 @@ export class AuthService {
     private jwtService: JwtService,
     private usersService: UsersService,
     private appGateway: AppGateway,
+    private readonly loginProtection: LoginProtectionService,
     @InjectModel(PermissionTemplate.name)
     private permissionTemplateModel: Model<PermissionTemplate>,
     @InjectModel(Permission.name)
@@ -48,14 +63,27 @@ export class AuthService {
   }
 
   async validateUser(username: string, password: string): Promise<any> {
-    let user: User | null = null;
-    user = await this.usersService.findByUsername(username);
-    if (user) {
-      const isPasswordValid = bcrypt.compareSync(password, user.password);
-      if (!isPasswordValid) {
-        return null;
+    let user: any = null;
+
+    try {
+      user = await this.usersService.findByUsername(username);
+    } catch (error) {
+      // findByUsername lanza 404 cuando no existe. Se normaliza a null para no
+      // revelar la existencia de la cuenta (enumeración de usuarios).
+      if (!(error instanceof NotFoundException)) {
+        throw error;
       }
-    } else {
+    }
+
+    if (!user) {
+      // Comparación de relleno: mantiene un tiempo de respuesta similar al de
+      // una contraseña incorrecta.
+      bcrypt.compareSync(password, this.dummyPasswordHash);
+      return null;
+    }
+
+    const isPasswordValid = bcrypt.compareSync(password, user.password);
+    if (!isPasswordValid) {
       return null;
     }
 
@@ -96,8 +124,6 @@ export class AuthService {
       avatar: user.avatar,
     };
 
-    console.log('payload:', payload);
-
     return {
       access_token: this.jwtService.sign(payload, {
         secret: process.env.JWT_SECRET,
@@ -106,18 +132,93 @@ export class AuthService {
     };
   }
 
-  async login(loginDto: LoginDto) {
-    const { username, password } = loginDto;
+  async login(loginDto: LoginDto, ip?: string) {
+    const username = (loginDto.username ?? '').trim();
+    const { password } = loginDto;
+
     if (!username) {
       throw new UnauthorizedException('El nombre de usuario es requerido');
     }
-    const user = await this.validateUser(username, password);
-    if (!user) {
-      throw new UnauthorizedException('Credenciales inválidas');
+    if (!password) {
+      throw new UnauthorizedException('La contraseña es requerida');
     }
+
+    const ipStatus = this.loginProtection.getIpStatus(ip);
+    if (ipStatus.blocked) {
+      const user = await this.validateUser(username, password);
+      if (!user) {
+        throw this.buildLoginRateLimitedException(ipStatus.retryAfterSeconds);
+      }
+      await this.loginProtection.reset(username);
+      return this.completeLogin(user);
+    }
+
+    const lockStatus = await this.loginProtection.getLockStatus(username);
+
+    if (lockStatus.locked) {
+      const user = await this.validateUser(username, password);
+      if (!user) {
+        throw this.buildLoginLockedException(lockStatus.retryAfterSeconds);
+      }
+      await this.loginProtection.reset(username);
+      return this.completeLogin(user);
+    }
+
+    const user = await this.validateUser(username, password);
+
+    if (!user) {
+      const failure = await this.loginProtection.registerFailure(username, ip);
+      if (failure.locked) {
+        throw this.buildLoginLockedException(failure.retryAfterSeconds);
+      }
+      // Mismo mensaje para usuario inexistente y contraseña incorrecta.
+      throw new UnauthorizedException('Usuario o contraseña incorrectos.');
+    }
+
+    await this.loginProtection.reset(username);
+    return this.completeLogin(user);
+  }
+
+  private async completeLogin(user: any) {
     await this.usersService.updateIsLogged(user._id, true);
     this.appGateway.sendActiveUsers();
     return this.generateToken(user);
+  }
+
+  /**
+   * 429 por exceso de fallos desde una misma red. Las credenciales correctas
+   * siguen funcionando, así que no bloquea a una institución tras un NAT.
+   */
+  private buildLoginRateLimitedException(
+    retryAfterSeconds: number,
+  ): HttpException {
+    const minutes = Math.max(1, Math.ceil(retryAfterSeconds / 60));
+    return new HttpException(
+      {
+        statusCode: HttpStatus.TOO_MANY_REQUESTS,
+        code: 'LOGIN_RATE_LIMITED',
+        message: `Demasiados intentos de inicio de sesión desde esta red. Espera ${minutes} minuto(s) antes de volver a intentar.`,
+        retryAfterSeconds,
+      },
+      HttpStatus.TOO_MANY_REQUESTS,
+    );
+  }
+
+  /**
+   * 429 con código estable y tiempo de espera para que el cliente muestre un
+   * mensaje accionable ("espera N minutos").
+   */
+  private buildLoginLockedException(retryAfterSeconds: number): HttpException {
+    const minutes = Math.max(1, Math.ceil(retryAfterSeconds / 60));
+    return new HttpException(
+      {
+        statusCode: HttpStatus.TOO_MANY_REQUESTS,
+        code: 'LOGIN_LOCKED',
+        message: `Demasiados intentos fallidos. Por seguridad, espera ${minutes} minuto(s) antes de volver a intentar.`,
+        retryAfterSeconds,
+      },
+      HttpStatus.TOO_MANY_REQUESTS,
+    );
   }
 
   async refreshToken(user: any) {
@@ -130,15 +231,17 @@ export class AuthService {
 
       // Verificar si el token ha sido invalidado
       if (this.isTokenInvalidated(decoded.sub)) {
-        throw new UnauthorizedException('Token has been invalidated');
+        throw new UnauthorizedException(
+          'La sesión fue cerrada. Inicia sesión de nuevo.',
+        );
       }
 
       return decoded;
     } catch (error) {
-      if (error) {
-        // touch variable to satisfy linter usage
+      if (error instanceof UnauthorizedException) {
+        throw error;
       }
-      throw new UnauthorizedException('Invalid token');
+      throw new UnauthorizedException('Token inválido o expirado.');
     }
   }
 

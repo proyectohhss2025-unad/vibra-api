@@ -1,9 +1,10 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsIn, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 
 export class RegisterTokenDto {
   @ApiProperty({
-    description: 'Expo Push Token del dispositivo (ExponentPushToken[xxxx])',
+    description:
+      'Expo Push Token (ExponentPushToken[xxxx]) o JSON de la suscripción Web Push para platform=web',
     example: 'ExponentPushToken[xxxxxxxxxxxxxxxxxxxxxx]',
   })
   @IsNotEmpty()
@@ -16,6 +17,6 @@ export class RegisterTokenDto {
     enum: ['ios', 'android', 'web'],
   })
   @IsOptional()
-  @IsString()
+  @IsIn(['ios', 'android', 'web'])
   platform?: 'ios' | 'android' | 'web';
 }

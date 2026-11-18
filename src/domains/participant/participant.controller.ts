@@ -6,12 +6,12 @@ import {
   Patch,
   Post,
   Query,
+  Req,
   UploadedFile,
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import {
-  ApiBearerAuth,
   ApiBody,
   ApiConsumes,
   ApiCreatedResponse,
@@ -22,9 +22,11 @@ import {
   ApiPropertyOptional,
   ApiQuery,
   ApiResponse,
-  ApiTags,
+  ApiTags
 } from '@nestjs/swagger';
 import { BypassPermission } from 'src/infrastructure/auth/bypass-permission.decorator';
+import { assertOwnership } from 'src/infrastructure/auth/ownership';
+import { RequireAuthenticated } from 'src/infrastructure/auth/require-authenticated.decorator';
 import { RequirePermission } from 'src/infrastructure/auth/require-permission.decorator';
 import { CreateParticipantDto } from './dto/create-participant.dto';
 import {
@@ -41,6 +43,12 @@ class ParticipantDto {
 
   @ApiProperty({ example: '65f1a2b3c4d5e6f7' })
   userId: string;
+
+  @ApiPropertyOptional({
+    example: 'Andre Luiz Suarez Medina',
+    description: 'Nombre completo del usuario (estudiante) asociado al participante.',
+  })
+  studentName?: string;
 
   @ApiProperty({ example: 'vibrandor_01' })
   nickname: string;
@@ -107,6 +115,14 @@ export class ParticipantController {
   constructor(private readonly participantService: ParticipantService) {}
 
   // ─── Crear participante ───
+  // Conserva el serial: crear participantes no debe quedar abierto a cualquier
+  // sesión. La validación de propiedad impide crearlo a nombre de otro usuario.
+  //
+  // `P-EST-007` («Interactuar») lo tiene el rol Estudiante en
+  // `seed-estudiante-rol.ts`, así que exigirlo no bloquea el alta del
+  // participante en el registro. Se había sustituido por `@RequireAuthenticated`,
+  // lo que bajaba la autorización de permiso a simple sesión; el comentario de
+  // arriba y `participant.controller.spec.ts` seguían afirmando el serial.
   @RequirePermission('P-EST-007')
   @Post()
   @ApiOperation({ summary: 'Crear participante (desde registro de User)' })
@@ -115,12 +131,13 @@ export class ParticipantController {
     description: 'Participante creado.',
     type: ParticipantDto,
   })
-  create(@Body() createParticipantDto: CreateParticipantDto) {
+  create(@Req() req: any, @Body() createParticipantDto: CreateParticipantDto) {
+    assertOwnership(req, createParticipantDto?.userId);
     return this.participantService.create(createParticipantDto);
   }
 
   // ─── Buscar participante por userId ───
-  @RequirePermission('P-EST-003')
+  @RequireAuthenticated()
   @Get('by-user/:userId')
   @ApiOperation({ summary: 'Obtener participante por userId' })
   @ApiParam({ name: 'userId', description: 'ID del usuario (User)' })
@@ -128,8 +145,37 @@ export class ParticipantController {
     description: 'Participante encontrado.',
     type: ParticipantDto,
   })
-  findByUserId(@Param('userId') userId: string) {
+  findByUserId(@Req() req: any, @Param('userId') userId: string) {
+    assertOwnership(req, userId);
     return this.participantService.findByUserId(userId);
+  }
+
+  // ─── Participante de la sesión ───
+  @RequireAuthenticated()
+  @Get('me')
+  @ApiOperation({ summary: 'Obtener el participante del usuario autenticado' })
+  @ApiOkResponse({
+    description: 'Participante encontrado.',
+    type: ParticipantDto,
+  })
+  findMine(@Req() req: any) {
+    return this.participantService.findByUserId(req.user?.sub);
+  }
+
+  // ─── Actualizar puntos de la sesión ───
+  @RequireAuthenticated()
+  @Patch('me/points')
+  @ApiOperation({
+    summary:
+      'Incrementar puntos del participante de la sesión y actualizar streak/level',
+  })
+  @ApiBody({ type: UpdatePointsDto })
+  @ApiOkResponse({
+    description: 'Puntos actualizados.',
+    type: UpdatePointsResponseDto,
+  })
+  updateMyPoints(@Req() req: any, @Body() dto: UpdatePointsDto) {
+    return this.participantService.updatePointsByUserId(req.user?.sub, dto);
   }
 
   // ─── Actualizar puntos (actividad completada) ───
@@ -180,7 +226,7 @@ export class ParticipantController {
   }
 
   // ─── Carga masiva CSV (legacy) ───
-  @RequirePermission('9')
+  @RequirePermission('P-ADM-001')
   @Post('bulk')
   @UseInterceptors(FileInterceptor('file'))
   @ApiOperation({ summary: 'Carga masiva de participantes (CSV)' })
@@ -198,11 +244,17 @@ export class ParticipantController {
   }
 
   // ─── Listar participantes ───
-  @RequirePermission(['9', 'P-DOC-001'])
+  @RequirePermission(['P-ADM-001', 'P-DOC-001'])
   @Get()
   @ApiOperation({ summary: 'Listar participantes' })
   @ApiQuery({ name: 'page', required: false, example: 1 })
   @ApiQuery({ name: 'rows', required: false, example: 10 })
+  @ApiQuery({
+    name: 'searchTerm',
+    required: false,
+    description:
+      'Búsqueda unificada por nickname, nombre completo del usuario, correo o documento.',
+  })
   @ApiOkResponse({
     description: 'Listado de participantes.',
     type: ParticipantsListDto,
@@ -239,10 +291,15 @@ export class ParticipantController {
     return this.participantService.getCountAll(query);
   }
 
-  // ─── Buscar ───
-  @RequirePermission(['9', 'P-DOC-001'])
+  // ─── Buscar (legacy) ───
+  @RequirePermission(['P-ADM-001', 'P-DOC-001'])
   @Get('search')
-  @ApiOperation({ summary: 'Buscar participantes' })
+  @ApiOperation({
+    summary: 'Buscar participantes (legacy)',
+    description:
+      'Deprecado para el panel web: usar `GET /api/participants?searchTerm=`.',
+    deprecated: true,
+  })
   @ApiQuery({ name: 'searchTerm', required: true, example: 'demo' })
   @ApiOkResponse({
     description: 'Resultados de búsqueda.',
@@ -253,7 +310,7 @@ export class ParticipantController {
   }
 
   // ─── Obtener por _id ───
-  @RequirePermission(['9', 'P-DOC-001'])
+  @RequirePermission(['P-ADM-001', 'P-DOC-001'])
   @Get(':id')
   @ApiOperation({ summary: 'Obtener participante por _id' })
   @ApiParam({ name: 'id', description: 'ID del participante.' })
@@ -266,6 +323,8 @@ export class ParticipantController {
   }
 
   // ─── Actualizar ───
+  // El body puede traer `points`: se mantiene el serial y se exige que el
+  // participante pertenezca a la sesión.
   @RequirePermission('P-EST-005')
   @Post('update')
   @ApiOperation({ summary: 'Actualizar participante' })
@@ -274,12 +333,20 @@ export class ParticipantController {
     description: 'Participante actualizado.',
     type: ParticipantDto,
   })
-  update(@Body() updateParticipantDto: UpdateParticipantDto) {
+  async update(
+    @Req() req: any,
+    @Body() updateParticipantDto: UpdateParticipantDto,
+  ) {
+    const ownerId = await this.participantService.getOwnerId(
+      updateParticipantDto?._id,
+    );
+    // Si el participante no existe, el servicio responde 404
+    if (ownerId) assertOwnership(req, ownerId);
     return this.participantService.update(updateParticipantDto);
   }
 
   // ─── Eliminar ───
-  @RequirePermission('9')
+  @RequirePermission('P-ADM-001')
   @Post('delete')
   @ApiOperation({ summary: 'Eliminar participante' })
   @ApiBody({
@@ -300,7 +367,7 @@ export class ParticipantController {
   }
 
   // ─── Filtrar por fechas (legacy) ───
-  @RequirePermission(['9', 'P-DOC-001'])
+  @RequirePermission(['P-ADM-001', 'P-DOC-001'])
   @Get('filter')
   @ApiOperation({ summary: 'Listar participantes por rango de fechas' })
   @ApiQuery({ name: 'startDate', required: false, example: '2026-01-01' })
@@ -326,7 +393,7 @@ export class ParticipantController {
   }
 
   // ─── Paginado (legacy) ───
-  @RequirePermission(['9', 'P-DOC-001'])
+  @RequirePermission(['P-ADM-001', 'P-DOC-001'])
   @Get('paginated')
   @ApiOperation({ summary: 'Listar participantes (paginado)' })
   @ApiQuery({ name: 'page', required: false, example: 1 })

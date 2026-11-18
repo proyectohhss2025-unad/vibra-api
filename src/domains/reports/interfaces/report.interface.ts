@@ -6,6 +6,7 @@ export interface KpiReport {
   totalScore: number;
   todayResponses: number;
   activeActivities: number;
+  totalActiveActivities?: number;
 }
 
 export interface ActivityReportItem {
@@ -57,6 +58,23 @@ export interface ScoreDistribution {
   range: string;
   count: number;
   percentage: number;
+}
+
+/**
+ * Distribución de puntajes junto con el promedio real del mismo filtro.
+ *
+ * `avgScore` lo calcula el servidor con el mismo `$match` que la distribución,
+ * para que coincida con el promedio de Panorama. 
+ *
+ * `avgScore` es la media de la suma de puntos por respuesta. **No es un
+ * porcentaje**: `score` acumula los puntos de cada pregunta o del juego y no hay
+ * denominador almacenado (decisión DEC-7 del plan de ajustes).
+ */
+export interface ScoreReport {
+  buckets: ScoreDistribution[];
+  totalResponses: number;
+  avgScore: number;
+  maxScore: number;
 }
 
 export interface UserProfile {

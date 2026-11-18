@@ -58,7 +58,7 @@ class ConfigsPaginatedDto {
 
 @ApiTags('Config')
 @Controller('api/config')
-@RequirePermission('11')
+@RequirePermission('P-CFG-001')
 export class ConfigController {
   constructor(private readonly configService: ConfigService) {}
 

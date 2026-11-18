@@ -1,10 +1,11 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
+  IsBoolean,
   IsNotEmpty,
+  IsNumber,
+  IsObject,
   IsOptional,
   IsString,
-  IsBoolean,
-  IsNumber,
 } from 'class-validator';
 
 export class CreateNotificationDto {
@@ -56,4 +57,19 @@ export class CreateNotificationDto {
   @IsOptional()
   @IsString()
   createdBy?: string;
+
+  @ApiPropertyOptional({ description: 'Acción que el cliente puede ejecutar' })
+  @IsOptional()
+  @IsString()
+  action?: string;
+
+  @ApiPropertyOptional({ description: 'Etiqueta visible de la acción' })
+  @IsOptional()
+  @IsString()
+  actionLabel?: string;
+
+  @ApiPropertyOptional({ description: 'Metadatos de la acción' })
+  @IsOptional()
+  @IsObject()
+  metadata?: Record<string, any>;
 }

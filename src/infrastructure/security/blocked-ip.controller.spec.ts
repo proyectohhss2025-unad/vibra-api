@@ -1,3 +1,4 @@
+import { jest } from '@jest/globals';
 import { Test, TestingModule } from '@nestjs/testing';
 import { NotFoundException } from '@nestjs/common';
 import { BlockedIpController } from './blocked-ip.controller';

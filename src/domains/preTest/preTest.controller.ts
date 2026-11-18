@@ -1,12 +1,13 @@
 import {
-  Controller,
-  Get,
-  Post,
   Body,
-  Patch,
-  Param,
+  Controller,
   Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
   Query,
+  Req,
 } from '@nestjs/common';
 import {
   ApiBody,
@@ -14,17 +15,22 @@ import {
   ApiOkResponse,
   ApiOperation,
   ApiParam,
+  ApiProperty,
   ApiQuery,
   ApiResponse,
   ApiTags,
-  ApiProperty,
 } from '@nestjs/swagger';
 import { BypassPermission } from 'src/infrastructure/auth/bypass-permission.decorator';
+import {
+  assertOwnership,
+  normalizePayload,
+} from 'src/infrastructure/auth/ownership';
+import { RequireAuthenticated } from 'src/infrastructure/auth/require-authenticated.decorator';
 import { RequirePermission } from 'src/infrastructure/auth/require-permission.decorator';
-import { PreTestService } from './preTest.service';
 import { CreatePreTestDto } from './dto/create-pretest.dto';
-import { UpdatePreTestDto } from './dto/update-pretest.dto';
 import { SearchUserAndTestDto } from './dto/search-user-and-test.dto';
+import { UpdatePreTestDto } from './dto/update-pretest.dto';
+import { PreTestService } from './preTest.service';
 
 class PreTestAnswerDto {
   @ApiProperty({ example: 'Q1' })
@@ -72,7 +78,7 @@ export class PreTestController {
    * @param createTestDto - Data transfer object for creating a pre-test
    * @returns The created pre-test
    */
-  @RequirePermission('15')
+  @RequirePermission('P-EVAL-001')
   @ApiOperation({ summary: 'Create a new pre-test' })
   @ApiResponse({
     status: 201,
@@ -90,7 +96,7 @@ export class PreTestController {
    * @param limit - Number of items per page
    * @returns List of pre-tests
    */
-  @RequirePermission('15')
+  @RequirePermission('P-EVAL-001')
   @ApiOperation({ summary: 'Retrieve all pre-tests' })
   @ApiResponse({ status: 200, description: 'List of pre-tests.' })
   @Get()
@@ -101,7 +107,7 @@ export class PreTestController {
     return this.preTestService.findAll(page, limit);
   }
 
-  @RequirePermission('15')
+  @RequirePermission('P-EVAL-001')
   @Get('by-test/:testId')
   @ApiOperation({
     summary: 'Obtener respuestas de un test',
@@ -176,7 +182,7 @@ export class PreTestController {
    * @param updateTestDto - Data transfer object for updating a pre-test
    * @returns The updated pre-test
    */
-  @RequirePermission('15')
+  @RequirePermission('P-EVAL-001')
   @ApiOperation({ summary: 'Update a pre-test' })
   @ApiResponse({
     status: 200,
@@ -193,7 +199,7 @@ export class PreTestController {
    * @param id - ID of the pre-test to remove
    * @returns A confirmation message
    */
-  @RequirePermission('15')
+  @RequirePermission('P-EVAL-001')
   @ApiOperation({ summary: 'Remove a pre-test' })
   @ApiResponse({
     status: 200,
@@ -210,7 +216,7 @@ export class PreTestController {
    * @param testData - Data of the pre-test response
    * @returns The saved pre-test response
    */
-  @RequirePermission('P-EST-002')
+  @RequireAuthenticated()
   @ApiOperation({ summary: 'Save a pre-test response' })
   @ApiResponse({
     status: 201,
@@ -223,8 +229,13 @@ export class PreTestController {
       'Datos del pre-test. Si tu cliente envía { body: \"{...}\" } también es soportado por compatibilidad.',
   })
   @ApiCreatedResponse({ type: PreTestDto })
-  async saveTest(@Body() testData: any) {
-    return this.preTestService.savePreTestResponse(testData);
+  async saveTest(@Req() req: any, @Body() testData: any) {
+    const payload = normalizePayload(testData);
+    // El dueño del registro es siempre la sesión: se ignora el `userId` del cliente
+    return this.preTestService.savePreTestResponse({
+      ...payload,
+      userId: req.user?.sub,
+    });
   }
 
   /**
@@ -233,7 +244,7 @@ export class PreTestController {
    * @param testId - Test ID
    * @returns User and test responses
    */
-  @RequirePermission('15')
+  @RequirePermission('P-EVAL-001')
   @ApiOperation({ summary: 'Get user and test responses' })
   @ApiResponse({
     status: 200,
@@ -251,7 +262,7 @@ export class PreTestController {
    * @param userId - User ID
    * @returns List of tests for the user
    */
-  @RequirePermission('P-EST-006')
+  @RequireAuthenticated()
   @ApiOperation({ summary: 'Get all tests by user ID' })
   @ApiResponse({ status: 200, description: 'List of tests for the user.' })
   @Get('search/user/:userId')
@@ -262,7 +273,8 @@ export class PreTestController {
     example: '6803296',
   })
   @ApiOkResponse({ type: [PreTestDto] })
-  async getUserTests(@Param('userId') userId: string) {
+  async getUserTests(@Req() req: any, @Param('userId') userId: string) {
+    assertOwnership(req, userId);
     return this.preTestService.getAlByUserId(userId);
   }
 
@@ -270,7 +282,7 @@ export class PreTestController {
    * Get all pre-test results
    * @returns List of all pre-test results
    */
-  @RequirePermission('15')
+  @RequirePermission('P-EVAL-001')
   @ApiOperation({ summary: 'Get all pre-test results' })
   @ApiResponse({ status: 200, description: 'List of all pre-test results.' })
   @Get('result-all')
@@ -284,7 +296,7 @@ export class PreTestController {
    * @param id - ID of the pre-test result
    * @returns The pre-test result
    */
-  @RequirePermission('P-EST-006')
+  @RequireAuthenticated()
   @ApiOperation({ summary: 'Get pre-test result by ID' })
   @ApiResponse({ status: 200, description: 'The pre-test result.' })
   @ApiResponse({ status: 404, description: 'Pre-test result not found.' })
@@ -295,8 +307,37 @@ export class PreTestController {
     example: '66c9cce47e6a95e98116c0ab',
   })
   @ApiOkResponse({ type: PreTestDto })
-  async getResultById(@Param('id') id: string) {
+  async getResultById(@Req() req: any, @Param('id') id: string) {
+    const ownerId = await this.preTestService.getOwnerId(id);
+    // Si el resultado no existe, el servicio responde 404
+    if (ownerId) assertOwnership(req, ownerId);
     return this.preTestService.getPreTestResultById(id);
+  }
+
+  /**
+   * Estado de los tests para el usuario de la sesión.
+   * No requiere `userId`: el dueño se deriva del JWT.
+   */
+  @RequireAuthenticated()
+  @ApiOperation({
+    summary: 'Get test completion status for the authenticated user',
+    description:
+      'Igual que GET status/:userId pero para la sesión actual (sin enviar userId).',
+  })
+  @ApiResponse({ status: 200, description: 'Status retrieved successfully.' })
+  @ApiQuery({
+    name: 'type',
+    required: false,
+    enum: ['initial', 'final'],
+    description:
+      'Filtro opcional: "initial" para tests de inicio, "final" para tests de cierre',
+  })
+  @Get('status/me')
+  async getMyStatus(
+    @Req() req: any,
+    @Query('type') type?: 'initial' | 'final',
+  ) {
+    return this.preTestService.getStatusByUserId(req.user?.sub, type);
   }
 
   /**
@@ -311,7 +352,7 @@ export class PreTestController {
    * @param type - Opcional: 'initial' | 'final'
    * @returns Estado de completitud de tests
    */
-  @RequirePermission('P-EST-006')
+  @RequireAuthenticated()
   @ApiOperation({
     summary: 'Get test completion status for a user',
     description:
@@ -334,9 +375,11 @@ export class PreTestController {
     example: '6803296',
   })
   async getStatusByUserId(
+    @Req() req: any,
     @Param('userId') userId: string,
     @Query('type') type?: 'initial' | 'final',
   ) {
+    assertOwnership(req, userId);
     return this.preTestService.getStatusByUserId(userId, type);
   }
 }

@@ -1,15 +1,16 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { getModelToken } from '@nestjs/mongoose';
+import { jest } from '@jest/globals';
 import {
   BadRequestException,
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
+import { getModelToken } from '@nestjs/mongoose';
+import { Test, TestingModule } from '@nestjs/testing';
+import { Types } from 'mongoose';
+import { Course } from '../course/schemas/course.schema';
+import { User } from '../users/schemas/user.schema';
 import { EnrollmentService } from './enrollment.service';
 import { Enrollment } from './schemas/enrollment.schema';
-import { User } from '../users/schemas/user.schema';
-import { Course } from '../course/schemas/course.schema';
-import { Types } from 'mongoose';
 
 describe('EnrollmentService', () => {
   let service: EnrollmentService;

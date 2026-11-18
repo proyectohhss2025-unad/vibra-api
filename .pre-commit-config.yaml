@@ -1,5 +1,12 @@
 version: 2.15.0
 
+# Hooks:
+#   pre-commit → lint + format + tests (rápido, sobre archivos TS/JS/JSON)
+#   pre-push   → `npm run verify` (suite completa + build)
+#
+# Activar ambos:
+#   pre-commit install --hook-type pre-commit --hook-type pre-push
+
 repos:
   - repo: local
     hooks:
@@ -18,3 +25,10 @@ repos:
         language: nodejs
         entry: ./scripts/test.sh
         types: [js, ts]
+      - id: verify
+        name: Tests + build (pre-push)
+        language: system
+        entry: npm run verify
+        pass_filenames: false
+        types: [ts, json]
+        stages: [pre-push]

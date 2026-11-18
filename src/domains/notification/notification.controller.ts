@@ -2,11 +2,13 @@ import {
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   Param,
   Post,
   Put,
   Query,
+  Request,
   UploadedFile,
   UseInterceptors,
 } from '@nestjs/common';
@@ -24,12 +26,11 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { RequireAuthenticated } from 'src/infrastructure/auth/require-authenticated.decorator';
 import { RequirePermission } from 'src/infrastructure/auth/require-permission.decorator';
 import { CreateNotificationDto } from './dto/create-notification.dto';
 import { UpdateNotificationDto } from './dto/update-notification.dto';
 import { NotificationService } from './notification.service';
-import { NotificationTypeStatsDto } from './dto/notification-type-stats.dto';
-import { MonthlyNotificationStatsDto } from './dto/monthly-notification-stats.dto';
 
 class UserDto {
   @ApiProperty()
@@ -121,6 +122,15 @@ class NotificationDto {
 
   @ApiPropertyOptional()
   editedAt?: string;
+
+  @ApiPropertyOptional({ description: 'Acción que el cliente puede ejecutar' })
+  action?: string;
+
+  @ApiPropertyOptional({ description: 'Etiqueta visible de la acción' })
+  actionLabel?: string;
+
+  @ApiPropertyOptional({ description: 'Metadatos de la acción' })
+  metadata?: Record<string, any>;
 }
 
 class NotificationsPaginatedDto {
@@ -135,6 +145,11 @@ class NotificationsPaginatedDto {
 @Controller('api/notifications')
 export class NotificationController {
   constructor(private readonly notificationService: NotificationService) {}
+
+  /** ID del usuario autenticado (JWT) para filtrar la bandeja. */
+  private currentUserId(req: any): string {
+    return String(req?.user?.sub || req?.user?._id || '');
+  }
 
   @Post()
   @ApiOperation({ summary: 'Crear notificación' })
@@ -164,7 +179,9 @@ export class NotificationController {
    * @param rows - Number of rows per page
    */
   @RequirePermission('P-EST-007')
-  @ApiOperation({ summary: 'Obtener todas las notificaciones con paginación' })
+  @ApiOperation({
+    summary: 'Obtener las notificaciones del usuario autenticado con paginación',
+  })
   @ApiQuery({
     name: 'page',
     required: false,
@@ -183,32 +200,61 @@ export class NotificationController {
   })
   @Get('all')
   async findAll(
+    @Request() req: any,
     @Query('page') page: string = '1',
     @Query('rows') rows: string = '10',
   ) {
-    return this.notificationService.getAll({ page, rows });
+    return this.notificationService.getAll(
+      { page, rows },
+      this.currentUserId(req),
+    );
   }
 
+  @RequireAuthenticated()
   @Get('count-all-notifications')
-  @ApiOperation({ summary: 'Contar todas las notificaciones' })
-  @ApiOkResponse({
-    description: 'Conteo total de notificaciones.',
-    schema: { type: 'number' },
+  @ApiOperation({
+    summary: 'Contar todas las notificaciones del usuario autenticado',
   })
-  async findCountAll(@Query() query: any) {
-    return this.notificationService.getCountAll(query);
+  @ApiOkResponse({
+    description: 'Conteo total de notificaciones del usuario.',
+    schema: {
+      type: 'object',
+      properties: {
+        countNotifications: { type: 'number', example: 12 },
+        count: { type: 'number', example: 12 },
+      },
+    },
+  })
+  async findCountAll(@Request() req: any, @Query() query: any) {
+    return this.notificationService.getCountAll(
+      query,
+      this.currentUserId(req),
+    );
   }
 
+  @RequireAuthenticated()
   @Get('count-all-notifications-by-day')
-  @ApiOperation({ summary: 'Contar notificaciones por día' })
-  @ApiOkResponse({
-    description: 'Conteo total de notificaciones por día.',
-    schema: { type: 'number' },
+  @ApiOperation({
+    summary: 'Contar notificaciones de hoy del usuario autenticado',
   })
-  async findCountAllByDay(@Query() query: any) {
-    return this.notificationService.getCountAllByDay(query);
+  @ApiOkResponse({
+    description: 'Conteo de notificaciones de hoy del usuario.',
+    schema: {
+      type: 'object',
+      properties: {
+        countNotifications: { type: 'number', example: 2 },
+        count: { type: 'number', example: 2 },
+      },
+    },
+  })
+  async findCountAllByDay(@Request() req: any, @Query() query: any) {
+    return this.notificationService.getCountAllByDay(
+      query,
+      this.currentUserId(req),
+    );
   }
 
+  @RequirePermission('P-EST-007')
   @Get(':id')
   @ApiOperation({ summary: 'Obtener notificación por id' })
   @ApiParam({ name: 'id', description: 'ID de la notificación.' })
@@ -216,10 +262,15 @@ export class NotificationController {
     description: 'Notificación encontrada.',
     type: NotificationDto,
   })
-  async findOne(@Param('id') id: string) {
-    return this.notificationService.getById(id);
+  async findOne(@Param('id') id: string, @Request() req: any) {
+    return this.notificationService.getById(
+      id,
+      this.currentUserId(req),
+      !!req?.userAuth?.isSuperAdmin,
+    );
   }
 
+  @RequirePermission('P-EST-007')
   @Get('title/:title')
   @ApiOperation({ summary: 'Obtener notificación por título' })
   @ApiParam({ name: 'title', description: 'Título de la notificación.' })
@@ -227,8 +278,11 @@ export class NotificationController {
     description: 'Notificación encontrada.',
     type: NotificationDto,
   })
-  async findByTitle(@Param('title') title: string) {
-    return this.notificationService.getByTitle(title);
+  async findByTitle(@Param('title') title: string, @Request() req: any) {
+    return this.notificationService.getByTitle(
+      title,
+      this.currentUserId(req),
+    );
   }
 
   @Post('batch/upload')
@@ -249,15 +303,21 @@ export class NotificationController {
     return this.notificationService.bulkCreate(file);
   }
 
+  @RequirePermission('P-EST-007')
   @Get('search/:term')
-  @ApiOperation({ summary: 'Buscar notificaciones por término' })
+  @ApiOperation({
+    summary: 'Buscar notificaciones del usuario autenticado por término',
+  })
   @ApiParam({ name: 'term', description: 'Término de búsqueda.' })
   @ApiOkResponse({
     description: 'Resultados de búsqueda.',
     schema: { type: 'array', items: { type: 'object' } },
   })
-  async search(@Param('term') term: string) {
-    return this.notificationService.search(term);
+  async search(@Param('term') term: string, @Request() req: any) {
+    return this.notificationService.search(
+      term,
+      this.currentUserId(req),
+    );
   }
 
   /**
@@ -279,10 +339,17 @@ export class NotificationController {
   async markAsRead(
     @Param('id') id: string,
     @Body('editedBy') editedBy: string,
+    @Request() req: any,
   ) {
-    return this.notificationService.markAsRead(id, editedBy);
+    return this.notificationService.markAsRead(
+      id,
+      editedBy,
+      this.currentUserId(req),
+      !!req?.userAuth?.isSuperAdmin,
+    );
   }
 
+  @RequirePermission('P-EST-007')
   @Put(':id')
   @ApiOperation({ summary: 'Actualizar notificación' })
   @ApiParam({ name: 'id', description: 'ID de la notificación.' })
@@ -294,10 +361,17 @@ export class NotificationController {
   async update(
     @Param('id') id: string,
     @Body() updateNotificationDto: UpdateNotificationDto,
+    @Request() req: any,
   ) {
-    return this.notificationService.update(id, updateNotificationDto);
+    return this.notificationService.update(
+      id,
+      updateNotificationDto,
+      this.currentUserId(req),
+      !!req?.userAuth?.isSuperAdmin,
+    );
   }
 
+  @RequirePermission('P-EST-007')
   @Delete(':id')
   @ApiOperation({ summary: 'Eliminar notificación' })
   @ApiParam({ name: 'id', description: 'ID de la notificación.' })
@@ -305,30 +379,59 @@ export class NotificationController {
     description: 'Notificación eliminada.',
     type: NotificationDto,
   })
-  async remove(@Param('id') id: string) {
-    return this.notificationService.remove(id);
+  async remove(@Param('id') id: string, @Request() req: any) {
+    return this.notificationService.remove(
+      id,
+      this.currentUserId(req),
+      !!req?.userAuth?.isSuperAdmin,
+    );
   }
 
   /**
-   * Retrieves the count of unread notifications for a user.
-   * @param id The ID of the user.
-   * @returns The count of unread notifications.
+   * Conteo de notificaciones no leídas del usuario autenticado.
+   */
+  @RequireAuthenticated()
+  @Get('unread/count')
+  @ApiOperation({
+    summary: 'Conteo de notificaciones no leídas del usuario autenticado',
+  })
+  @ApiOkResponse({
+    description: 'Conteo de no leídas del usuario del token.',
+    schema: { type: 'number', example: 3 },
+  })
+  async getMyUnreadCount(@Request() req: any): Promise<number> {
+    return this.notificationService.getUnreadCountByUserId(
+      this.currentUserId(req),
+    );
+  }
+
+  /**
+   * Compatibilidad: conteo de no leídas por id.
+   * Sólo el propio usuario (o SuperAdmin) puede consultarlo.
    */
   @RequirePermission('P-EST-007')
   @Get('unread/count/:id')
   @ApiOperation({
-    summary: 'Retrieve the count of unread notifications for a user',
+    summary: 'Conteo de no leídas por usuario (compatibilidad)',
     description:
-      'Fetches the count of unread notifications for a specific user.',
+      'Sólo permite consultar el propio usuario; SuperAdmin puede consultar cualquiera.',
   })
-  @ApiParam({ name: 'id', description: 'The ID of the user', type: 'number' })
+  @ApiParam({ name: 'id', description: 'ID del usuario', type: 'string' })
   @ApiResponse({
     status: 200,
-    description: 'Successfully retrieved the count of unread notifications.',
+    description: 'Conteo de no leídas.',
     type: Number,
   })
-  @ApiResponse({ status: 404, description: 'User not found.' })
-  async getUnreadCount(@Param('id') id: number): Promise<number> {
+  async getUnreadCount(
+    @Param('id') id: string,
+    @Request() req: any,
+  ): Promise<number> {
+    const currentUserId = this.currentUserId(req);
+    if (String(id) !== currentUserId && !req?.userAuth?.isSuperAdmin) {
+      throw new ForbiddenException(
+        'No puedes consultar las notificaciones de otro usuario',
+      );
+    }
     return this.notificationService.getUnreadCountByUserId(id);
   }
 }

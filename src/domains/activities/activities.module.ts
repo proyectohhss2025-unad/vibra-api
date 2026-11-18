@@ -1,12 +1,16 @@
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
+import { PushNotificationsModule } from 'src/domains/push-notifications/push-notifications.module';
 import {
   UserResponse,
   UserResponseSchema,
 } from 'src/domains/userResponses/schemas/userResponse.schema';
 import { UserResponseService } from 'src/domains/userResponses/userResponse.service';
 import { AuthMiddleware } from 'src/infrastructure/auth/auth.middleware';
-import { PushNotificationsModule } from 'src/domains/push-notifications/push-notifications.module';
+import {
+  ActivityCompletion,
+  ActivityCompletionSchema,
+} from '../activity-completions/schemas/activity-completion.schema';
 import {
   Participant,
   ParticipantSchema,
@@ -26,6 +30,9 @@ import {
       { name: WeeklySchedule.name, schema: WeeklyScheduleSchema },
       { name: UserResponse.name, schema: UserResponseSchema },
       { name: Participant.name, schema: ParticipantSchema },
+      // Necesario para el historial: los juegos registran "completions" en su
+      // propia colección y no crean UserResponse.
+      { name: ActivityCompletion.name, schema: ActivityCompletionSchema },
     ]),
     PushNotificationsModule,
   ],

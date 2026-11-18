@@ -18,21 +18,21 @@ import {
   ApiOkResponse,
   ApiOperation,
   ApiParam,
+  ApiProperty,
+  ApiPropertyOptional,
   ApiQuery,
   ApiResponse,
   ApiTags,
-  ApiProperty,
-  ApiPropertyOptional,
 } from '@nestjs/swagger';
 import { parse } from 'csv-parse/sync';
 import { readFileSync } from 'fs';
 import { BypassPermission } from 'src/infrastructure/auth/bypass-permission.decorator';
 import { RequirePermission } from 'src/infrastructure/auth/require-permission.decorator';
+import { CreateRoleDto } from './dto/create-role.dto';
+import { PaginationDto } from './dto/pagination.dto';
+import { UpdateRoleDto } from './dto/update-role.dto';
 import { RolesService } from './roles.service';
 import { Role } from './schemas/role.schema';
-import { CreateRoleDto } from './dto/create-role.dto';
-import { UpdateRoleDto } from './dto/update-role.dto';
-import { PaginationDto } from './dto/pagination.dto';
 
 class PermissionTemplateSummaryDto {
   @ApiProperty({ example: '66c9cce47e6a95e98116c0aa' })
@@ -95,7 +95,7 @@ class RolesPaginatedDto {
 
 @ApiTags('Roles')
 @Controller('api/roles')
-@RequirePermission('9')
+@RequirePermission('P-ADM-001')
 export class RolesController {
   constructor(private readonly rolesService: RolesService) {}
 

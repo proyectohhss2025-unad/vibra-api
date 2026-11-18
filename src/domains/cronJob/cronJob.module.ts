@@ -3,8 +3,9 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { AuthMiddleware } from 'src/infrastructure/auth/auth.middleware';
 import { BackupModule } from '../../infrastructure/backup/backup.module';
 import { ActivitiesModule } from '../activities/activities.module';
-import { RankingModule } from '../rankings/ranking.module';
 import { NotificationModule } from '../notification/notification.module';
+import { PushNotificationsModule } from '../push-notifications/push-notifications.module';
+import { RankingModule } from '../rankings/ranking.module';
 import { CronJobController } from './cronJob.controller';
 import { CronJobService } from './cronJob.service';
 import { CronJobExecutionService } from './cronJobExecution.service';
@@ -25,6 +26,7 @@ import {
     ActivitiesModule,
     RankingModule,
     NotificationModule,
+    PushNotificationsModule,
   ],
   controllers: [CronJobController],
   providers: [CronJobService, CronJobExecutionService, JobTypeRegistry],

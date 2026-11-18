@@ -2,13 +2,13 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { AppLoggerService } from '../../helpers/logger/logger.service';
-import { CreateCompletionDto } from './dto/create-completion.dto';
-import { ActivityCompletion } from './schemas/activity-completion.schema';
+import { getColombiaDayRange } from '../../utils/dates';
 import {
   Participant,
   calculateLevel,
 } from '../participant/schemas/participant.schema';
-import { getColombiaDayRange } from '../../utils/dates';
+import { CreateCompletionDto } from './dto/create-completion.dto';
+import { ActivityCompletion } from './schemas/activity-completion.schema';
 
 @Injectable()
 export class ActivityCompletionsService {
@@ -20,6 +20,24 @@ export class ActivityCompletionsService {
     private readonly logger: AppLoggerService,
   ) {
     this.logger.log('ActivityCompletionsService initialized');
+  }
+
+  /**
+   * Devuelve el `userId` dueño de un participante (para validar propiedad).
+   * `null` si el participante no existe o el id no es válido.
+   */
+  async getParticipantOwnerId(participantId: string): Promise<string | null> {
+    if (!Types.ObjectId.isValid(participantId)) {
+      return null;
+    }
+
+    const participant = await this.participantModel
+      .findById(participantId)
+      .select('userId')
+      .lean()
+      .exec();
+
+    return participant?.userId ? String(participant.userId) : null;
   }
 
   /**
@@ -46,14 +64,13 @@ export class ActivityCompletionsService {
         .exec();
       if (participant) {
         const totalPoints =
-          (participant.points || 0) + (dto.achievedScore || 0);
+          Math.round((participant.points || 0) + (dto.achievedScore || 0));
         const newLevel = calculateLevel(totalPoints);
 
         const updateFields: Record<string, any> = {
           points: totalPoints,
           totalActivitiesCompleted:
             (participant.totalActivitiesCompleted || 0) + 1,
-          lastActivityDate: new Date(),
         };
 
         if (newLevel !== participant.level) {

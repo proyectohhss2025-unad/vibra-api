@@ -1,5 +1,6 @@
-import { Test, TestingModule } from '@nestjs/testing';
+import { jest } from '@jest/globals';
 import { NotFoundException } from '@nestjs/common';
+import { Test, TestingModule } from '@nestjs/testing';
 import { EnrollmentController } from './enrollment.controller';
 import { EnrollmentService } from './enrollment.service';
 

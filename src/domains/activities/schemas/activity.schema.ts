@@ -69,7 +69,7 @@ export class Activity extends Document {
 
   @Prop({
     type: String,
-    enum: ['reto', 'evento_personal', 'actividad_pares', 'otro'],
+    enum: ['reto', 'evento_personal', 'actividad_diaria', 'otro'],
     default: 'evento_personal',
   })
   type?: string;

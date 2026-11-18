@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   InternalServerErrorException,
   Logger,
@@ -8,13 +9,13 @@ import {
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Company } from '../company/schemas/company.schema';
-import { User } from '../users/schemas/user.schema';
+import { Enrollment } from '../enrollment/schemas/enrollment.schema';
 import { Participant } from '../participant/schemas/participant.schema';
 import { UserResponse } from '../userResponses/schemas/userResponse.schema';
-import { Enrollment } from '../enrollment/schemas/enrollment.schema';
-import { Course, CourseDocument } from './schemas/course.schema';
+import { User } from '../users/schemas/user.schema';
 import { CreateCourseDto } from './dto/create-course.dto';
 import { UpdateCourseDto } from './dto/update-course.dto';
+import { Course, CourseDocument } from './schemas/course.schema';
 
 @Injectable()
 export class CourseService {
@@ -30,6 +31,78 @@ export class CourseService {
     @InjectModel(Enrollment.name)
     private enrollmentModel: Model<Enrollment>,
   ) {}
+
+  // ─────────────────────────────────────────────────────────────────────────
+  //  FUENTE ÚNICA DE VERDAD: quién está inscrito en un curso
+  //
+  //  Antes convivían dos fuentes incompatibles y una de ellas estaba rota:
+  //
+  //   · `participant.currentCourse` — puntero denormalizado que NINGÚN servicio
+  //     escribe (solo se puede fijar por DTO). Daba 0 estudiantes.
+  //   · `enrollments` — registro real de matrícula, con índice único
+  //     (userId, courseId) y estado `activo | completado | retirado`.
+  //
+  //  La fuente canónica es `enrollments`. Todo conteo de estudiantes del curso
+  //  pasa por estos dos helpers (informe del 4-nov-2026, hallazgo D-06).
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /** Estados de matrícula que cuentan como «inscrito». `retirado` queda fuera. */
+  private static readonly ENROLLED_STATUSES = ['activo', 'completado'];
+
+  /** Construye el filtro de matrículas, tolerando un id inválido sin lanzar. */
+  private enrollmentFilter(courseId: string, statuses: string[]) {
+    let objectId: Types.ObjectId;
+    try {
+      objectId = new Types.ObjectId(courseId);
+    } catch {
+      return null;
+    }
+    return { courseId: objectId, status: { $in: statuses } };
+  }
+
+  /** Cuenta matrículas del curso en los estados indicados. */
+  private async countEnrollments(
+    courseId: string,
+    statuses: string[] = CourseService.ENROLLED_STATUSES,
+  ): Promise<number> {
+    const filter = this.enrollmentFilter(courseId, statuses);
+    if (!filter) return 0;
+    return this.enrollmentModel.countDocuments(filter).exec();
+  }
+
+  /** Ids de usuario inscritos (activo + completado), sin duplicados. */
+  private async getEnrolledUserIds(courseId: string): Promise<Types.ObjectId[]> {
+    const filter = this.enrollmentFilter(
+      courseId,
+      CourseService.ENROLLED_STATUSES,
+    );
+    if (!filter) return [];
+    const rows = await this.enrollmentModel
+      .find(filter)
+      .select('userId')
+      .lean()
+      .exec();
+    return rows
+      .map((row: any) => row.userId)
+      .filter(Boolean) as Types.ObjectId[];
+  }
+
+  /**
+   * Inscritos que además tienen actividad registrada.
+   *
+   * El campo de usuario en `UserResponse` es `user`, NO `userId`: las consultas
+   * que usaban `userId` devolvían siempre vacío y hacían que «Activos» saliera
+   * en 0 con estudiantes que sí habían respondido.
+   */
+  private async countEnrolledWithActivity(
+    userIds: Types.ObjectId[],
+  ): Promise<number> {
+    if (userIds.length === 0) return 0;
+    const responders = await this.userResponseModel
+      .distinct('user', { user: { $in: userIds } })
+      .exec();
+    return responders.length;
+  }
 
   /**
    * Obtiene lista simple de cursos activos (solo _id y name) para selectores.
@@ -71,27 +144,14 @@ export class CourseService {
 
     const progress = await Promise.all(
       courses.map(async (course) => {
-        // Participantes inscritos en este curso
-        const totalParticipants = await this.participantModel
-          .countDocuments({ currentCourse: course._id, isActive: true })
-          .exec();
+        const courseId = course._id.toString();
 
-        // Participantes que han completado al menos una actividad
-        const participantUsers = await this.participantModel
-          .find({ currentCourse: course._id, isActive: true })
-          .select('userId')
-          .lean()
-          .exec();
+        // Inscritos según la matrícula (fuente única).
+        const totalParticipants = await this.countEnrollments(courseId);
 
-        const userIds = participantUsers.map((p) => p.userId);
-
-        let activeParticipants = 0;
-        if (userIds.length > 0) {
-          activeParticipants = await this.userResponseModel
-            .distinct('user', { user: { $in: userIds } })
-            .exec()
-            .then((users) => users.length);
-        }
+        // De ellos, los que además tienen actividad registrada.
+        const userIds = await this.getEnrolledUserIds(courseId);
+        const activeParticipants = await this.countEnrolledWithActivity(userIds);
 
         const progressPercent =
           totalParticipants > 0
@@ -99,7 +159,7 @@ export class CourseService {
             : 0;
 
         return {
-          courseId: course._id.toString(),
+          courseId,
           courseName: (course as any).name,
           totalParticipants,
           activeParticipants,
@@ -397,23 +457,19 @@ export class CourseService {
         .lean()
         .exec();
 
-      // Para cada curso, contar estudiantes y calcular progreso
+      // Para cada curso, contar estudiantes y calcular progreso.
+      // La fuente es la matrícula, no `participant.currentCourse`.
       const coursesWithStats = await Promise.all(
         courses.map(async (course: any) => {
-          const studentCount = await this.participantModel
-            .countDocuments({ currentCourse: course._id })
-            .exec();
+          const courseId = course._id.toString();
 
-          const completedCount = await this.userResponseModel
-            .distinct('userId', {
-              activityId: {
-                $in: await this.participantModel
-                  .find({ currentCourse: course._id })
-                  .distinct('userId')
-                  .exec(),
-              },
-            })
-            .exec();
+          const studentCount = await this.countEnrollments(courseId);
+          const activeStudents = await this.countEnrollments(courseId, [
+            'activo',
+          ]);
+          const userIds = await this.getEnrolledUserIds(courseId);
+          const studentsWithActivity =
+            await this.countEnrolledWithActivity(userIds);
 
           return {
             _id: course._id,
@@ -425,7 +481,8 @@ export class CourseService {
             endDate: course.endDate,
             maxStudents: course.maxStudents,
             studentCount,
-            activeStudents: completedCount.length,
+            activeStudents,
+            studentsWithActivity,
             createdAt: course.createdAt,
           };
         }),
@@ -448,63 +505,107 @@ export class CourseService {
   }
 
   /**
+   * Valida que el solicitante pueda gestionar un curso.
+   *
+   * Un usuario privilegiado (SuperAdmin o serial `10`) puede gestionar
+   * cualquier curso; el resto sólo los que tiene asignados como instructor.
+   * Evita que un docente enumere estudiantes de cursos ajenos pasando un
+   * `courseId` arbitrario en la URL.
+   */
+  async assertCanManageCourse(
+    courseId: string,
+    userId: string | undefined,
+    isPrivileged: boolean,
+  ): Promise<void> {
+    if (isPrivileged) return;
+
+    const course = await this.courseModel
+      .findOne({ _id: courseId, deleted: { $ne: true } })
+      .select('instructorId')
+      .lean()
+      .exec();
+
+    if (!course) {
+      throw new NotFoundException('Curso no encontrado');
+    }
+
+    const instructorId = (course as any).instructorId
+      ? String((course as any).instructorId)
+      : '';
+
+    if (!instructorId || instructorId !== String(userId || '')) {
+      throw new ForbiddenException(
+        'No tienes permisos para gestionar este curso',
+      );
+    }
+  }
+
+  /**
    * Obtiene los estudiantes de un curso con su progreso.
+   *
+   * La lista sale de la matrícula (`enrollments`), no de
+   * `participant.currentCourse`. Un inscrito puede no tener todavía documento
+   * de participante: en ese caso se devuelven sus datos de usuario con los
+   * valores iniciales en cero, en lugar de omitirlo.
    */
   async getCourseStudents(courseId: string) {
     this.logger.log(`Fetching students for course: ${courseId}`);
 
-    const participants = await this.participantModel
-      .find({ currentCourse: courseId })
-      .populate({
-        path: 'userId',
-        select: 'name email username avatar documentNumber isActive',
-        model: 'User',
-      })
-      .lean()
-      .exec();
+    const userIds = await this.getEnrolledUserIds(courseId);
 
-    if (!participants || participants.length === 0) {
+    if (userIds.length === 0) {
       return {
-        message: 'No hay estudiantes en este curso',
+        message: 'No hay estudiantes inscritos en este curso',
         students: [],
         length: 0,
       };
     }
 
-    // Obtener conteo de respuestas por estudiante
-    const userIds = participants.map((p: any) => p.userId?._id).filter(Boolean);
+    const [users, participants, responseCounts] = await Promise.all([
+      this.userModel
+        .find({ _id: { $in: userIds } })
+        .select('name email username avatar documentNumber isActive')
+        .lean()
+        .exec(),
+      this.participantModel
+        .find({ userId: { $in: userIds } })
+        .lean()
+        .exec(),
+      this.userResponseModel
+        .aggregate([
+          // El campo es `user`; con `userId` la consulta devolvía siempre vacío.
+          { $match: { user: { $in: userIds } } },
+          { $group: { _id: '$user', count: { $sum: 1 } } },
+        ])
+        .exec(),
+    ]);
 
-    const responseCounts = await this.userResponseModel
-      .aggregate([
-        { $match: { userId: { $in: userIds } } },
-        { $group: { _id: '$userId', count: { $sum: 1 } } },
-      ])
-      .exec();
-
-    const countMap = new Map(
-      responseCounts.map((r) => [r._id.toString(), r.count]),
+    const participantByUser = new Map<string, any>(
+      participants.map((p: any) => [String(p.userId), p]),
+    );
+    const responsesByUser = new Map<string, number>(
+      responseCounts.map((r: any) => [String(r._id), r.count]),
     );
 
-    const students = participants.map((p: any) => {
-      const user = p.userId || {};
-      const userId = user._id?.toString();
+    const students = users.map((user: any) => {
+      const participant = participantByUser.get(String(user._id)) ?? {};
       return {
-        _id: p._id,
-        userId: userId,
+        _id: participant._id?.toString() ?? String(user._id),
+        userId: String(user._id),
         name: user.name || '—',
         email: user.email || '',
         username: user.username || '',
         documentNumber: user.documentNumber || '',
         avatar: user.avatar || '',
         isActive: user.isActive !== false,
-        nickname: p.nickname || '',
-        points: p.points || 0,
-        level: p.level || 'bronce',
-        currentStreak: p.currentStreak || 0,
-        maxStreak: p.maxStreak || 0,
-        totalActivitiesCompleted: p.totalActivitiesCompleted || 0,
-        lastActivityDate: p.lastActivityDate || null,
-        activitiesResponded: countMap.get(userId) || 0,
+        nickname: participant.nickname || '',
+        points: participant.points || 0,
+        level: participant.level || 'bronce',
+        currentStreak: participant.currentStreak || 0,
+        maxStreak: participant.maxStreak || 0,
+        totalActivitiesCompleted: participant.totalActivitiesCompleted || 0,
+        lastActivityDate: participant.lastActivityDate || null,
+        activitiesResponded: responsesByUser.get(String(user._id)) ?? 0,
       };
     });
 
@@ -517,6 +618,21 @@ export class CourseService {
 
   /**
    * Obtiene estadísticas agregadas de un curso.
+   *
+   * Todas las cifras salen de la matrícula (`enrollments`). Antes «Activos»
+   * significaba aquí «participantes con totalActivitiesCompleted > 0», mientras
+   * la lista de estudiantes mostraba su estado de matrícula con la misma
+   * palabra: de ahí «6 estudiantes, Activos: 1, los 6 aparecen como activo»
+   * (informe del 4-nov-2026, hallazgo D-06).
+   *
+   * Contrato resultante, con cada cifra nombrada por lo que cuenta:
+   *   totalStudents        inscritos (activo + completado; «retirado» fuera)
+   *   activeStudents       matrícula en estado «activo»
+   *   completedStudents    matrícula en estado «completado»
+   *   withdrawnStudents    matrícula en estado «retirado»
+   *   studentsWithActivity inscritos con al menos una respuesta registrada
+   *   activityRate         studentsWithActivity / totalStudents
+   *   completionRate       completedStudents / totalStudents
    */
   async getCourseProgressStats(courseId: string) {
     this.logger.log(`Fetching progress stats for course: ${courseId}`);
@@ -526,40 +642,32 @@ export class CourseService {
       throw new NotFoundException('Curso no encontrado');
     }
 
-    const courseObjId = new Types.ObjectId(courseId);
+    const [
+      totalStudents,
+      activeStudents,
+      completedStudents,
+      withdrawnStudents,
+      userIds,
+    ] = await Promise.all([
+      this.countEnrollments(courseId),
+      this.countEnrollments(courseId, ['activo']),
+      this.countEnrollments(courseId, ['completado']),
+      this.countEnrollments(courseId, ['retirado']),
+      this.getEnrolledUserIds(courseId),
+    ]);
 
-    // Total de estudiantes: contar desde enrollments (inscripciones activas o completadas)
-    const totalStudents = await this.enrollmentModel
-      .countDocuments({
-        courseId: courseObjId,
-        status: { $in: ['activo', 'completado'] },
-      })
-      .exec();
+    const studentsWithActivity =
+      await this.countEnrolledWithActivity(userIds);
 
-    // Obtener userIds de los estudiantes inscritos para buscar sus participants
-    const enrollments = await this.enrollmentModel
-      .find({
-        courseId: courseObjId,
-        status: { $in: ['activo', 'completado'] },
-      })
-      .select('userId')
-      .lean()
-      .exec();
-
-    const userIds = enrollments.map((e: any) => e.userId);
-
-    // Buscar participants por userId (no por currentCourse)
+    // Datos de participante solo para los inscritos que ya lo tienen.
     const participants = await this.participantModel
       .find({ userId: { $in: userIds } })
       .select('userId totalActivitiesCompleted points level')
       .lean()
       .exec();
 
-    const activeStudents = participants.filter(
-      (p: any) => (p.totalActivitiesCompleted || 0) > 0,
-    ).length;
-
-    // Puntaje promedio
+    // Puntaje promedio sobre el total de inscritos: quien no tiene participante
+    // cuenta como 0, igual que antes, para no inflar la media.
     const totalPoints = participants.reduce(
       (sum: number, p: any) => sum + (p.points || 0),
       0,
@@ -567,26 +675,29 @@ export class CourseService {
     const avgPoints =
       totalStudents > 0 ? Math.round(totalPoints / totalStudents) : 0;
 
-    // Distribución de niveles
     const levelDistribution: Record<string, number> = {};
     participants.forEach((p: any) => {
       const level = p.level || 'bronce';
       levelDistribution[level] = (levelDistribution[level] || 0) + 1;
     });
 
+    const percent = (part: number) =>
+      totalStudents > 0 ? Math.round((part / totalStudents) * 100) : 0;
+
     return {
       courseId,
       courseName: (course as any).name,
       totalStudents,
       activeStudents,
-      inactiveStudents: totalStudents - activeStudents,
+      completedStudents,
+      withdrawnStudents,
+      inactiveStudents: withdrawnStudents,
+      studentsWithActivity,
       avgPoints,
       totalPoints,
       levelDistribution,
-      completionRate:
-        totalStudents > 0
-          ? Math.round((activeStudents / totalStudents) * 100)
-          : 0,
+      activityRate: percent(studentsWithActivity),
+      completionRate: percent(completedStudents),
     };
   }
 

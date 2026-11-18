@@ -1,32 +1,32 @@
 import {
   Controller,
-  Get,
-  Patch,
   Delete,
-  Param,
-  Query,
+  Get,
   HttpCode,
   HttpStatus,
+  Param,
+  Patch,
+  Query,
   Req,
 } from '@nestjs/common';
 import {
-  ApiTags,
-  ApiOperation,
   ApiOkResponse,
+  ApiOperation,
   ApiParam,
+  ApiTags,
 } from '@nestjs/swagger';
 import { RequirePermission } from 'src/infrastructure/auth/require-permission.decorator';
-import { SecurityService } from './security.service';
 import { BlockedIpQueryDto } from './dto/blocked-ip-query.dto';
 import {
-  BlockedIpResponseDto,
   BlockedIpListResponseDto,
+  BlockedIpResponseDto,
 } from './dto/blocked-ip.dto';
 import { ReleaseIpResponseDto } from './dto/release-ip.dto';
+import { SecurityService } from './security.service';
 
 @ApiTags('Security')
 @Controller('api/blocked-ips')
-@RequirePermission('9')
+@RequirePermission('P-ADM-001')
 export class BlockedIpController {
   constructor(private readonly securityService: SecurityService) {}
 

@@ -1,12 +1,62 @@
+import { jest } from '@jest/globals';
 import { Test, TestingModule } from '@nestjs/testing';
 import { ExecutionContext, HttpStatus } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { ThrottlerGuard } from './throttler.guard';
-import { ThrottlerException, ThrottlerModuleOptions, ThrottlerStorage } from '@nestjs/throttler';
 import { AppLoggerService } from '../../helpers/logger/logger.service';
-import { THROTTLER_OPTIONS } from '@nestjs/throttler/dist/throttler.constants';
 import { SecurityService } from '../security/security.service';
 import { BlockedIpCacheService } from '../security/cache/blocked-ip-cache.service';
+
+/**
+ * `@nestjs/throttler` se publica como CommonJS y hace `require` de un
+ * `@nestjs/common` que es ESM: en Jest ESM no carga («Must use import to load ES
+ * Module») y la suite no arrancaba. No hay versión ESM publicada.
+ *
+ * Lo que se prueba aquí es **nuestro** guardián (bloqueo por IP, rutas forzadas,
+ * registro), no el rate limiting de Nest. Se sustituye el paquete por el mínimo
+ * que el guardián necesita: la clase base, la excepción y los tokens de DI.
+ *
+ * El `import` del guardián es dinámico a propósito: los `import` estáticos se
+ * evalúan antes que cualquier sentencia y cargarían el paquete real.
+ */
+class MockThrottlerException extends Error {
+    constructor(message = 'ThrottlerException') {
+        super(message);
+        this.name = 'ThrottlerException';
+    }
+}
+
+class MockNestThrottlerGuard {
+    constructor(
+        protected readonly options?: unknown,
+        protected readonly storageService?: unknown,
+        protected readonly reflector?: unknown,
+    ) {}
+
+    async handleRequest(): Promise<boolean> {
+        return true;
+    }
+
+    async canActivate(): Promise<boolean> {
+        return true;
+    }
+}
+
+class MockThrottlerStorage {}
+
+jest.unstable_mockModule('@nestjs/throttler', () => ({
+    ThrottlerGuard: MockNestThrottlerGuard,
+    ThrottlerException: MockThrottlerException,
+    ThrottlerStorage: MockThrottlerStorage,
+    ThrottlerModuleOptions: {},
+}));
+
+jest.unstable_mockModule('@nestjs/throttler/dist/throttler.constants', () => ({
+    THROTTLER_OPTIONS: 'THROTTLER_OPTIONS',
+}));
+
+const { THROTTLER_OPTIONS } = await import('@nestjs/throttler/dist/throttler.constants');
+const { ThrottlerException, ThrottlerStorage } = await import('@nestjs/throttler');
+const { ThrottlerGuard } = await import('./throttler.guard');
 
 describe('ThrottlerGuard', () => {
     let guard: ThrottlerGuard | any;
@@ -194,6 +244,46 @@ describe('ThrottlerGuard', () => {
             expect(result).toBe(true);
         });
 
+        it('should not skip rate limiting for critical registration paths', async () => {
+            mockExecutionContext.getType.mockReturnValue('http');
+            const registerRequest = { ...mockRequest, path: '/api/auth/register', url: '/api/auth/register' };
+            mockExecutionContext.switchToHttp().getRequest.mockReturnValue(registerRequest);
+
+            const result = await (guard as any).shouldSkip(mockExecutionContext as unknown as ExecutionContext);
+
+            expect(result).toBe(false);
+        });
+
+        it('should not skip rate limiting for the captcha challenge endpoint', async () => {
+            mockExecutionContext.getType.mockReturnValue('http');
+            const captchaRequest = { ...mockRequest, path: '/api/captcha/challenge', url: '/api/captcha/challenge?x=1' };
+            mockExecutionContext.switchToHttp().getRequest.mockReturnValue(captchaRequest);
+
+            const result = await (guard as any).shouldSkip(mockExecutionContext as unknown as ExecutionContext);
+
+            expect(result).toBe(false);
+        });
+
+        it('should not skip rate limiting for the login endpoint', async () => {
+            mockExecutionContext.getType.mockReturnValue('http');
+            const loginRequest = { ...mockRequest, path: '/api/auth/login', url: '/api/auth/login' };
+            mockExecutionContext.switchToHttp().getRequest.mockReturnValue(loginRequest);
+
+            const result = await (guard as any).shouldSkip(mockExecutionContext as unknown as ExecutionContext);
+
+            expect(result).toBe(false);
+        });
+
+        it('should keep skipping the rest of /api traffic', async () => {
+            mockExecutionContext.getType.mockReturnValue('http');
+            const usersRequest = { ...mockRequest, path: '/api/users', url: '/api/users' };
+            mockExecutionContext.switchToHttp().getRequest.mockReturnValue(usersRequest);
+
+            const result = await (guard as any).shouldSkip(mockExecutionContext as unknown as ExecutionContext);
+
+            expect(result).toBe(true);
+        });
+
         it('should skip rate limiting for OPTIONS requests', async () => {
             // Prepare
             const optionsRequest = { ...mockRequest, method: 'OPTIONS' };
@@ -231,6 +321,42 @@ describe('ThrottlerGuard', () => {
             expect(result).toBe(false);
         });
         */
+    });
+
+    describe('getTracker', () => {
+        it('uses ip + username for the login endpoint', async () => {
+            const loginRequest = {
+                ...mockRequest,
+                path: '/api/auth/login',
+                url: '/api/auth/login',
+                body: { username: '  Maria.Gomez ' },
+            };
+
+            const tracker = await (guard as any).getTracker(loginRequest);
+
+            expect(tracker).toBe('192.168.1.1|maria.gomez');
+        });
+
+        it('uses the ip for other endpoints', async () => {
+            const otherRequest = { ...mockRequest, path: '/api/activities', url: '/api/activities' };
+
+            const tracker = await (guard as any).getTracker(otherRequest);
+
+            expect(tracker).toBe('192.168.1.1');
+        });
+
+        it('falls back to the ip when login has no username', async () => {
+            const loginRequest = {
+                ...mockRequest,
+                path: '/api/auth/login',
+                url: '/api/auth/login',
+                body: {},
+            };
+
+            const tracker = await (guard as any).getTracker(loginRequest);
+
+            expect(tracker).toBe('192.168.1.1');
+        });
     });
 
     describe('getRealIp', () => {

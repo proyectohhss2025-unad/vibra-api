@@ -9,26 +9,40 @@ import {
   Query,
   Request,
 } from '@nestjs/common';
-import { BypassPermission } from 'src/infrastructure/auth/bypass-permission.decorator';
+import {
+  ApiBody,
+  ApiOkResponse,
+  ApiOperation,
+  ApiParam,
+  ApiQuery,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
+import { RequireAuthenticated } from 'src/infrastructure/auth/require-authenticated.decorator';
 import { RequirePermission } from 'src/infrastructure/auth/require-permission.decorator';
 import { CourseService } from './course.service';
 import { CreateCourseDto } from './dto/create-course.dto';
 import { UpdateCourseDto } from './dto/update-course.dto';
-import {
-  ApiTags,
-  ApiOperation,
-  ApiBody,
-  ApiOkResponse,
-  ApiResponse,
-  ApiParam,
-  ApiQuery,
-} from '@nestjs/swagger';
 
 @ApiTags('Courses')
 @Controller('api/courses')
-@RequirePermission('10')
+@RequirePermission('P-ADM-002')
 export class CourseController {
   constructor(private readonly courseService: CourseService) {}
+
+  /**
+   * Indica si el solicitante puede gestionar cualquier curso.
+   *
+   * `PermissionGuard` adjunta `req.userAuth` con el resultado de la
+   * autorización: SuperAdmin o portador del serial `10` (gestión de cursos).
+   */
+  private isPrivileged(req: any): boolean {
+    const auth = req?.userAuth;
+    return (
+      auth?.isSuperAdmin === true ||
+      (Array.isArray(auth?.serials) && auth.serials.includes('10'))
+    );
+  }
 
   /**
    * Obtener lista simple de cursos (id, name) para selectores
@@ -109,7 +123,7 @@ export class CourseController {
    * Obtener todos los cursos con filtros opcionales
    */
   @Get()
-  @BypassPermission()
+  @RequireAuthenticated()
   @ApiOperation({ summary: 'Listar todos los cursos' })
   @ApiQuery({
     name: 'companyId',
@@ -137,7 +151,6 @@ export class CourseController {
     status: 200,
     description: 'Lista de cursos obtenida exitosamente',
   })
-  @Get()
   async findAll(
     @Query('companyId') companyId?: string,
     @Query('status') status?: string,
@@ -152,7 +165,7 @@ export class CourseController {
     });
   }
 
-  @BypassPermission()
+  @RequireAuthenticated()
   @Get('search')
   @ApiOperation({ summary: 'Buscar por término' })
   @ApiQuery({ name: 'searchTerm', required: true })
@@ -172,7 +185,7 @@ export class CourseController {
    * Obtiene los cursos asignados al docente autenticado.
    * GET /api/courses/my-courses
    */
-  @RequirePermission('P-DOC-001')
+  @RequirePermission(['P-DOC-001', 'P-ADM-002'])
   @Get('my-courses')
   @ApiOperation({
     summary: 'Cursos del docente autenticado',
@@ -210,7 +223,7 @@ export class CourseController {
    * Obtiene los estudiantes de un curso con su progreso.
    * GET /api/courses/:courseId/students
    */
-  @RequirePermission('P-DOC-001')
+  @RequirePermission(['P-DOC-001', 'P-ADM-002'])
   @Get(':courseId/students')
   @ApiOperation({
     summary: 'Estudiantes de un curso',
@@ -223,7 +236,16 @@ export class CourseController {
     example: '65f1a2b3c4d5e6f7g8h9i0j',
   })
   @ApiOkResponse({ description: 'Lista de estudiantes del curso.' })
-  async getCourseStudents(@Param('courseId') courseId: string) {
+  async getCourseStudents(
+    @Param('courseId') courseId: string,
+    @Request() req: any,
+  ) {
+    const userId = req?.user?.sub || req?.user?._id;
+    await this.courseService.assertCanManageCourse(
+      courseId,
+      userId?.toString(),
+      this.isPrivileged(req),
+    );
     return this.courseService.getCourseStudents(courseId);
   }
 
@@ -231,7 +253,7 @@ export class CourseController {
    * Obtiene estadísticas agregadas de progreso de un curso.
    * GET /api/courses/:courseId/progress
    */
-  @RequirePermission('P-DOC-002')
+  @RequirePermission(['P-DOC-001', 'P-DOC-002', 'P-ADM-002'])
   @Get(':courseId/progress')
   @ApiOperation({
     summary: 'Estadísticas de progreso de un curso',
@@ -244,7 +266,16 @@ export class CourseController {
     example: '65f1a2b3c4d5e6f7g8h9i0j',
   })
   @ApiOkResponse({ description: 'Estadísticas de progreso del curso.' })
-  async getCourseProgress(@Param('courseId') courseId: string) {
+  async getCourseProgress(
+    @Param('courseId') courseId: string,
+    @Request() req: any,
+  ) {
+    const userId = req?.user?.sub || req?.user?._id;
+    await this.courseService.assertCanManageCourse(
+      courseId,
+      userId?.toString(),
+      this.isPrivileged(req),
+    );
     return this.courseService.getCourseProgressStats(courseId);
   }
 

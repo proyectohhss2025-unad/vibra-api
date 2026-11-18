@@ -16,12 +16,12 @@ import {
   ApiOkResponse,
   ApiOperation,
   ApiParam,
-  ApiQuery,
-  ApiTags,
   ApiProperty,
   ApiPropertyOptional,
+  ApiQuery,
+  ApiTags,
 } from '@nestjs/swagger';
-import { BypassPermission } from 'src/infrastructure/auth/bypass-permission.decorator';
+import { RequireAuthenticated } from 'src/infrastructure/auth/require-authenticated.decorator';
 import { RequirePermission } from 'src/infrastructure/auth/require-permission.decorator';
 import { CreateEmotionDto, UpdateEmotionDto } from './dto/create-emotion.dto';
 import { EmotionsService } from './emotions.service';
@@ -73,7 +73,7 @@ class EmotionsPaginatedDto {
 
 @ApiTags('Emotions')
 @Controller('api/emotions')
-@RequirePermission('8')
+@RequirePermission('P-EMO-001')
 export class EmotionsController {
   constructor(private readonly emotionsService: EmotionsService) {}
 
@@ -86,7 +86,7 @@ export class EmotionsController {
     return this.emotionsService.create(createEmotionDto);
   }
 
-  @RequirePermission('P-EST-007')
+  @RequireAuthenticated()
   @Get()
   @ApiOperation({ summary: 'Listar emociones (paginado)' })
   @ApiQuery({ name: 'page', required: false, example: 1 })

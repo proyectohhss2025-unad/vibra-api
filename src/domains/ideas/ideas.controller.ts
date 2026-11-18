@@ -3,11 +3,10 @@ import {
   Controller,
   Delete,
   Get,
-  NotFoundException,
   Param,
   Post,
   Put,
-  Query,
+  Query
 } from '@nestjs/common';
 import {
   ApiBody,
@@ -16,10 +15,10 @@ import {
   ApiOkResponse,
   ApiOperation,
   ApiParam,
-  ApiQuery,
-  ApiTags,
   ApiProperty,
   ApiPropertyOptional,
+  ApiQuery,
+  ApiTags,
 } from '@nestjs/swagger';
 import { BypassPermission } from 'src/infrastructure/auth/bypass-permission.decorator';
 import { RequirePermission } from 'src/infrastructure/auth/require-permission.decorator';
@@ -103,7 +102,7 @@ class EstadisticasDto {
 
 @ApiTags('Ideas')
 @Controller('api/ideas')
-@RequirePermission('0')
+@RequirePermission('P-IDEA-001')
 export class IdeasController {
   constructor(private readonly ideasService: IdeasService) {}
 

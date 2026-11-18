@@ -1,26 +1,30 @@
 import {
   CanActivate,
   ExecutionContext,
-  Injectable,
-  UnauthorizedException,
   ForbiddenException,
+  Injectable,
   Logger,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
 import { AuthService } from 'src/domains/auth/auth.service';
 import { PermissionCacheService } from '../cache/permission-cache.service';
-import { REQUIRE_PERMISSION_KEY } from './require-permission.decorator';
 import { BYPASS_PERMISSION_KEY } from './bypass-permission.decorator';
+import { REQUIRE_AUTHENTICATED_KEY } from './require-authenticated.decorator';
+import { REQUIRE_PERMISSION_KEY } from './require-permission.decorator';
 
 /**
  * Guard unificado de autenticación + autorización.
  *
  * 1. Extrae el JWT del header (Authorization o x-access-token)
  * 2. Si hay token válido, lo decodifica y adjunta el usuario a req.user
- * 3. Si el endpoint tiene @RequirePermission, verifica que el usuario
+ * 3. Si el endpoint tiene @BypassPermission, deja pasar
+ * 4. Si el endpoint tiene @RequireAuthenticated, exige sólo un JWT válido
+ *    (cualquier rol), sin verificar seriales
+ * 5. Si el endpoint tiene @RequirePermission, verifica que el usuario
  *    tenga ese permiso (o sea SuperAdmin)
- * 4. Si no tiene @RequirePermission, deja pasar (incluso sin token)
+ * 6. Si no tiene @RequirePermission, deja pasar (incluso sin token)
  */
 @Injectable()
 export class PermissionGuard implements CanActivate {
@@ -49,6 +53,12 @@ export class PermissionGuard implements CanActivate {
       [context.getHandler(), context.getClass()],
     );
 
+    // Endpoints que sólo exigen sesión (sin serial de permiso)
+    const requiresAuthenticated = this.reflector.getAllAndOverride<boolean>(
+      REQUIRE_AUTHENTICATED_KEY,
+      [context.getHandler(), context.getClass()],
+    );
+
     // Intentar extraer y validar el JWT (SIEMPRE, incluso si hay bypassPermission)
     // Esto asegura que req.user esté poblado para endpoints como avatar/gallery
     // que necesitan el userId del token aunque no requieran permiso específico.
@@ -56,6 +66,19 @@ export class PermissionGuard implements CanActivate {
 
     if (bypassPermission) {
       this.logger.debug(`BYPASS ${method} ${url} (skip permission check)`);
+      return true;
+    }
+
+    // Sesión obligatoria pero sin serial: cualquier rol autenticado pasa.
+    // Tiene prioridad sobre el @RequirePermission de clase (p. ej. '16').
+    if (requiresAuthenticated) {
+      if (!userId) {
+        this.logger.warn(`UNAUTHORIZED ${method} ${url} - missing auth`);
+        throw new UnauthorizedException(
+          'Se requiere autenticación para acceder a este recurso',
+        );
+      }
+      this.logger.debug(`AUTHENTICATED PASS ${method} ${url}`);
       return true;
     }
 
@@ -83,6 +106,11 @@ export class PermissionGuard implements CanActivate {
       this.logger.debug(
         `User ${userId} permissions: isSuperAdmin=${permissions.isSuperAdmin}, serials=[${permissions.serials}]`,
       );
+
+      request.userAuth = {
+        isSuperAdmin: permissions.isSuperAdmin,
+        serials: permissions.serials,
+      };
 
       // SuperAdmin tiene acceso full
       if (permissions.isSuperAdmin) {

@@ -4,52 +4,52 @@ import { APP_GUARD } from '@nestjs/core';
 import { JwtModule } from '@nestjs/jwt';
 import { MongooseModule } from '@nestjs/mongoose';
 import { ServeStaticModule } from '@nestjs/serve-static';
-import { PermissionGuard } from './infrastructure/auth/permission.guard';
 import * as path from 'path';
 import { ActivitiesModule } from './domains/activities/activities.module';
 import { ActivityCompletionsModule } from './domains/activity-completions/activity-completions.module';
+import { AdminModule } from './domains/admin/admin.module';
 import { AuditLogModule } from './domains/auditLog/audit-log.module';
 import { AuthModule } from './domains/auth/auth.module';
 import { CompanyModule } from './domains/company';
 import { ConfigModule } from './domains/config/config.module';
+import { ContactsModule } from './domains/contacts/contacts.module';
 import { CourseModule } from './domains/course/course.module';
 import { CronJobModule } from './domains/cronJob/cronJob.module';
+import { DocumentTypeModule } from './domains/documentType/documentType.module';
 import { EmotionsModule } from './domains/emotions/emotions.module';
+import { EnrollmentModule } from './domains/enrollment/enrollment.module';
 import { FeedbackModule } from './domains/feedback/feedback.module';
+import { IdeasModule } from './domains/ideas/ideas.module';
+import { MongoDBAdminModule } from './domains/mongodbAdmin/mongodbAdmin.module';
 import { NotificationModule } from './domains/notification/notification.module';
 import { ParticipantModule } from './domains/participant/participant.module';
+import { PasswordResetModule } from './domains/password-reset/password-reset.module';
+import { PermissionCategoryModule } from './domains/permissionCategory/permissionCategory.module';
+import { PermissionsModule } from './domains/permissions/permissions.module';
 import { PermissionTemplatesModule } from './domains/permissionTemplates/permissionTemplates.module';
 import { PoliciesModule } from './domains/policies/policies.module';
 import { PreTestModule } from './domains/preTest/preTest.module';
-import { TestsModule } from './domains/tests/test.module';
+import { PushNotificationsModule } from './domains/push-notifications/push-notifications.module';
 import { RankingModule } from './domains/rankings/ranking.module';
+import { ReportsModule } from './domains/reports/reports.module';
 import { RolesModule } from './domains/roles/roles.module';
 import { SchedulingModule } from './domains/scheduling/scheduling.module';
+import { TestsModule } from './domains/tests/test.module';
 import { TranslateModule } from './domains/translates/translate.module';
 import { UserPermissionsModule } from './domains/userPermissions/userPermissions.module';
 import { UsersModule } from './domains/users/users.module';
 import { LoggerModule } from './helpers/logger/logger.module';
+import { PermissionGuard } from './infrastructure/auth/permission.guard';
+import { BackupModule } from './infrastructure/backup/backup.module';
+import { CaptchaModule } from './infrastructure/captcha/captcha.module';
 import { EmailModule } from './infrastructure/emails/email.module';
 import { ExceptionsModule } from './infrastructure/exceptions/exceptions.module';
 import { FileUploadModule } from './infrastructure/file-upload/file-upload.module';
 import { ImageCompressionModule } from './infrastructure/image-compression/image-compression.module';
-import { AppGateway } from './infrastructure/sockets/appGateway.gateway';
-import { EventsGateway } from './infrastructure/sockets/events.gateway';
+import { SecurityModule } from './infrastructure/security/security.module';
+import { SocketsModule } from './infrastructure/sockets/sockets.module';
 import { ThrottlerGuard } from './infrastructure/throttler/throttler.guard';
 import { AppThrottlerModule } from './infrastructure/throttler/throttler.module';
-import { PasswordResetModule } from './domains/password-reset/password-reset.module';
-import { PermissionsModule } from './domains/permissions/permissions.module';
-import { PermissionCategoryModule } from './domains/permissionCategory/permissionCategory.module';
-import { DocumentTypeModule } from './domains/documentType/documentType.module';
-import { PushNotificationsModule } from './domains/push-notifications/push-notifications.module';
-import { ContactsModule } from './domains/contacts/contacts.module';
-import { IdeasModule } from './domains/ideas/ideas.module';
-import { BackupModule } from './infrastructure/backup/backup.module';
-import { AdminModule } from './domains/admin/admin.module';
-import { MongoDBAdminModule } from './domains/mongodbAdmin/mongodbAdmin.module';
-import { EnrollmentModule } from './domains/enrollment/enrollment.module';
-import { ReportsModule } from './domains/reports/reports.module';
-import { SecurityModule } from './infrastructure/security/security.module';
 
 @Module({
   imports: [
@@ -100,7 +100,9 @@ import { SecurityModule } from './infrastructure/security/security.module';
     FileUploadModule,
     ImageCompressionModule,
     SecurityModule,
+    CaptchaModule,
     RankingModule,
+    SocketsModule,
     SchedulingModule,
     AppThrottlerModule,
     ExceptionsModule,
@@ -119,8 +121,6 @@ import { SecurityModule } from './infrastructure/security/security.module';
     ReportsModule,
   ],
   providers: [
-    EventsGateway,
-    AppGateway,
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard,

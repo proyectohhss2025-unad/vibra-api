@@ -1,26 +1,29 @@
 import {
+  BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   InternalServerErrorException,
   NotFoundException,
-  BadRequestException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import * as bcrypt from 'bcryptjs';
-import { Model } from 'mongoose';
+import bcrypt from 'bcryptjs';
+import { Model, Types } from 'mongoose';
 import { v4 as uuidv4 } from 'uuid';
 import { AppLoggerService } from '../../helpers/logger/logger.service';
 import { FileUploadService } from '../../infrastructure/file-upload/file-upload.service';
-import { CreateUserDto } from './dto/create-user.dto';
-import { UpdateUserDto } from './dto/update-user.dto';
+import { Config } from '../config/schemas/config.schema';
+import { Participant } from '../participant/schemas/participant.schema';
+import { Role } from '../roles/schemas/role.schema';
 import {
   AvatarGalleryItemTypeEnum,
   AvatarGalleryResponseDto,
 } from './dto/avatar-gallery.dto';
-import { User, AvatarGalleryItem } from './schemas/user.schema';
-import { Role } from '../roles/schemas/role.schema';
-import { Participant } from '../participant/schemas/participant.schema';
-import { Config } from '../config/schemas/config.schema';
+import { CreateUserDto } from './dto/create-user.dto';
+import { UpdateOwnProfileDto } from './dto/update-own-profile.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
+import { AvatarGalleryItem, User } from './schemas/user.schema';
 
 @Injectable()
 export class UsersService {
@@ -40,13 +43,15 @@ export class UsersService {
    *
    * @param createUserDto - Datos del usuario a crear
    * @param options - Opciones de creación
-   * @param options.isPublic - true si la petición llega sin sesión (registro público desde
-   *   la app mobile). En ese caso se fuerza `isActive: false` (pendiente de activación por
-   *   docente/admin) y el rol Estudiante, ignorando el rol enviado por el cliente.
+   * @param options.isPublic - true solo para el registro público (POST /api/auth/register):
+   *   fuerza `isActive: false` (pendiente de activación por docente/admin) y el rol
+   *   Estudiante, ignorando el rol enviado por el cliente.
+   * @param options.actorRoleName - Nombre del rol del usuario autenticado que realiza
+   *   el alta. Se usa para impedir que se asigne el rol Super Admin a quien no lo es.
    */
   async create(
     createUserDto: CreateUserDto,
-    options?: { isPublic?: boolean },
+    options?: { isPublic?: boolean; actorRoleName?: string },
   ): Promise<User> {
     this.logger.log('Creating a new user...');
 
@@ -79,6 +84,8 @@ export class UsersService {
       throw new BadRequestException(
         'El rol es obligatorio para crear un usuario.',
       );
+    } else {
+      await this.assertRoleAssignable(role, options?.actorRoleName);
     }
 
     const hashedPassword = await bcrypt.hash(sanitizedDto.password, 10);
@@ -123,6 +130,93 @@ export class UsersService {
   }
 
   /**
+   * Actualiza el perfil del propio usuario autenticado.
+   *
+   * Solo acepta campos personales (lista blanca). Cualquier intento de cambiar
+   * rol, estado, institución, documento, email o contraseña se descarta: el
+   * auto-perfil nunca es una vía de escalada de privilegios.
+   */
+  async updateOwnProfile(
+    userId: string,
+    updateOwnProfileDto: UpdateOwnProfileDto,
+  ): Promise<any> {
+    // Defensa: el id viene del JWT, pero si faltara no debe llegar a la query.
+    if (!userId || !Types.ObjectId.isValid(userId)) {
+      throw new UnauthorizedException(
+        'Se requiere autenticación para actualizar el perfil.',
+      );
+    }
+
+    const { name, address, phoneNumber, birthDate, gender, avatar } =
+      updateOwnProfileDto;
+
+    const updatePayload: Record<string, any> = {};
+
+    if (name !== undefined) updatePayload.name = name;
+    if (address !== undefined) updatePayload.address = address;
+    if (phoneNumber !== undefined) {
+      updatePayload.phoneNumber = phoneNumber.replace(/\D/g, '');
+    }
+    if (gender !== undefined) updatePayload.gender = gender;
+    if (avatar !== undefined) updatePayload.avatar = avatar;
+    if (birthDate !== undefined) updatePayload.birthDate = new Date(birthDate);
+
+    if (Object.keys(updatePayload).length === 0) {
+      throw new BadRequestException(
+        'No se recibieron campos válidos para actualizar el perfil.',
+      );
+    }
+
+    updatePayload.editedAt = new Date();
+
+    const updated = await this.userModel
+      .findByIdAndUpdate(userId, updatePayload, {
+        new: true,
+        runValidators: true,
+      })
+      .select('-password')
+      .exec();
+
+    if (!updated) {
+      throw new NotFoundException('Usuario no encontrado.');
+    }
+
+    return updated;
+  }
+
+  /**
+   * Valida que el rol enviado exista y que el solicitante pueda asignarlo.
+   *
+   * - Evita que un
+   *   Administrador (o cualquier rol con permiso de gestión de usuarios) escale
+   *   privilegios creando o editando usuarios.
+   */
+  private async assertRoleAssignable(
+    roleId: string,
+    actorRoleName?: string,
+  ): Promise<void> {
+    if (!Types.ObjectId.isValid(roleId)) {
+      throw new BadRequestException('El rol seleccionado no es válido.');
+    }
+
+    const role = await this.roleModel
+      .findOne({ _id: roleId, deleted: { $ne: true } })
+      .exec();
+
+    if (!role) {
+      throw new BadRequestException(
+        'El rol seleccionado no existe o fue eliminado.',
+      );
+    }
+
+    if (role.isSuperAdmin && actorRoleName !== 'Super Admin') {
+      throw new ForbiddenException(
+        'Solo un Super Admin puede asignar el rol Super Admin.',
+      );
+    }
+  }
+
+  /**
    * Agrega el documentNumber de un usuario a todas las configs activas
    * para que el nuevo usuario pueda acceder al sistema sin restricciones.
    */
@@ -147,12 +241,21 @@ export class UsersService {
     }
   }
 
-  async update(updateUserDto: UpdateUserDto): Promise<any> {
+  async update(
+    updateUserDto: UpdateUserDto,
+    options?: { actorRoleName?: string },
+  ): Promise<any> {
     const { _id, password, ...payload } = updateUserDto;
 
     const userExists = await this.userModel.findById(_id).exec();
     if (!userExists) {
       throw new NotFoundException(`Usuario con id ${_id} no encontrado`);
+    }
+
+    // Un cambio de rol debe respetar las mismas reglas que el alta:
+    // rol existente y sin escalada a Super Admin.
+    if (payload.role) {
+      await this.assertRoleAssignable(payload.role, options?.actorRoleName);
     }
 
     const updatePayload: Record<string, any> = { ...payload };
@@ -340,25 +443,40 @@ export class UsersService {
   }
 
   /**
-   * @returns User[]
+   * Lista usuarios con paginación real (server-side).
+   *
+   * Antes este método ignoraba `page`/`rows` y devolvía TODOS los usuarios con
+   * tres `populate` completos: el paginador del dashboard era decorativo.
+   *
+   * @param pagination.page - Página solicitada (1-based). Por defecto 1.
+   * @param pagination.rows - Tamaño de página (1..100). Por defecto 8.
+   * @returns `{ data, total }` — mismo contrato que consumía el dashboard.
    */
-  async findAllWithPaginate(): Promise<any> {
-    return {
-      data: await this.userModel
+  async findAllWithPaginate(pagination?: {
+    page?: string | number;
+    rows?: string | number;
+  }): Promise<{ data: User[]; total: number }> {
+    const page = Math.max(1, Number(pagination?.page) || 1);
+    const rows = Math.min(100, Math.max(1, Number(pagination?.rows) || 8));
+    const skip = (page - 1) * rows;
+
+    const [data, total] = await Promise.all([
+      this.userModel
         .find()
-        .populate({ path: 'role' })
-        .populate({ path: 'documentType' })
-        .populate({ path: 'company' })
-        /*.populate({
-                    path: 'course',
-                    populate: {
-                        path: 'hightSchool'
-                    }
-                })*/
-        .select('-password')
+        .populate({ path: 'role', select: '_id name' })
+        .populate({ path: 'documentType', select: '_id name' })
+        .populate({ path: 'company', select: '_id name' })
+        // `avatarGallery` es un array de presets por usuario: no lo necesita la tabla.
+        .select('-password -avatarGallery')
+        // Orden estable: sin él, skip/limit puede repetir o saltar documentos.
+        .sort({ createdAt: -1, _id: -1 })
+        .skip(skip)
+        .limit(rows)
         .exec(),
-      total: await this.userModel.countDocuments().exec(),
-    };
+      this.userModel.countDocuments().exec(),
+    ]);
+
+    return { data, total };
   }
 
   /**
@@ -438,14 +556,15 @@ export class UsersService {
       .exec();
 
     if (!user) {
-      throw new NotFoundException(`Usuario con email ${email} no encontrado`);
+      // No se revela si el email existe o no (evita enumeración de cuentas).
+      throw new UnauthorizedException('Credenciales inválidas');
     }
 
     const isPasswordValid = await bcrypt.compareSync(password, user.password);
     if (!isPasswordValid) {
-      throw new NotFoundException(
-        `Contraseña incorrecta para el usuario: ${password} ${user.username} ${user.email} ${user.password}`,
-      );
+      // Nunca incluir la contraseña, el hash ni datos del usuario en el error:
+      // este mensaje termina en logs y en la respuesta HTTP.
+      throw new UnauthorizedException('Credenciales inválidas');
     }
     return user;
   }
@@ -698,11 +817,20 @@ export class UsersService {
     await user.save();
   }
 
+  /**
+   * Búsqueda de usuarios para el listado del panel.
+   *
+   * Devuelve los mismos campos que `allPaginate` **incluido `role`**: 
+   */
   async search(searchTerm: string): Promise<Partial<User>[]> {
+    const fields = 'name username email documentNumber avatar isActive role';
+    const populateRole = { path: 'role', select: '_id name' };
+
     if (!searchTerm || searchTerm === 'all') {
       return this.userModel
         .find({ deleted: { $ne: true } })
-        .select('name username email documentNumber avatar isActive')
+        .select(fields)
+        .populate(populateRole)
         .limit(20)
         .sort({ createdAt: -1 })
         .exec();
@@ -718,7 +846,8 @@ export class UsersService {
           { documentNumber: { $regex: regex } },
         ],
       })
-      .select('name username email documentNumber avatar isActive')
+      .select(fields)
+      .populate(populateRole)
       .limit(20)
       .sort({ createdAt: -1 })
       .exec();

@@ -1,6 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { BackupService } from '../../infrastructure/backup/backup.service';
+import { NOTIFICATION_ACTION_OPEN_DAILY_ACTIVITIES } from '../../utils/constants';
+import { getColombiaWeekRange } from '../../utils/dates';
 import { ActivitiesService } from '../activities/activities.service';
+import { NotificationService } from '../notification/notification.service';
+import { PushDeliveryStatsService } from '../push-notifications/push-delivery-stats.service';
+import type { PushSendResult } from '../push-notifications/push-notifications.service';
+import { PushNotificationService } from '../push-notifications/push-notifications.service';
 import { RankingService } from '../rankings/ranking.service';
 
 /**
@@ -29,6 +35,9 @@ export class JobTypeRegistry {
     private backupService: BackupService,
     private activitiesService: ActivitiesService,
     private rankingService: RankingService,
+    private notificationService: NotificationService,
+    private pushNotificationService: PushNotificationService,
+    private pushDeliveryStatsService: PushDeliveryStatsService,
   ) {
     this.registerDefaults();
   }
@@ -110,6 +119,174 @@ export class JobTypeRegistry {
           success: true,
           message: `${count} actividades desactivadas`,
           output: { count },
+        };
+      },
+    });
+
+    // --- CHECK_DAILY_COVERAGE ---
+    this.register({
+      name: 'CHECK_DAILY_COVERAGE',
+      label: 'Verificar cobertura de Actividad Diaria',
+      description:
+        'Revisa la próxima semana y notifica en la bandeja si hay días sin Actividad Diaria programada.',
+      configSchema: {
+        type: 'object',
+        properties: {
+          weeksAhead: {
+            type: 'number',
+            description: 'Semanas a revisar desde la actual (default 1)',
+            default: 1,
+          },
+          notify: {
+            type: 'boolean',
+            description: 'Crear la notificación en la bandeja (default true)',
+            default: true,
+          },
+          roles: {
+            type: 'array',
+            items: { type: 'string' },
+            description:
+              'Roles destinatarios (default: Super Admin, Administrador, Docente)',
+          },
+        },
+      },
+      handler: async (config) => {
+        const rawWeeks = Number(config.weeksAhead);
+        const weeksAhead =
+          Number.isFinite(rawWeeks) && rawWeeks >= 0
+            ? Math.trunc(rawWeeks)
+            : 1;
+        const { from, to } = getColombiaWeekRange(weeksAhead);
+        const coverage = await this.activitiesService.getDailyActivityCoverage({
+          from,
+          to,
+        });
+        const rangeLabel =
+          `${from.slice(8, 10)}/${from.slice(5, 7)} – ` +
+          `${to.slice(8, 10)}/${to.slice(5, 7)}`;
+
+        if (coverage.summary.missingDays === 0) {
+          return {
+            success: true,
+            message: `Cobertura completa para ${rangeLabel}`,
+            output: coverage,
+          };
+        }
+
+        const missing = coverage.days
+          .filter((day) => !day.covered)
+          .map((day) => day.date);
+        const shortMissing = missing
+          .slice(0, 5)
+          .map((date) => `${date.slice(8, 10)}/${date.slice(5, 7)}`)
+          .join(', ');
+        const extra =
+          missing.length > 5 ? ` y ${missing.length - 5} más` : '';
+        const title = 'Cobertura de Actividad Diaria incompleta';
+        const message =
+          `La semana ${rangeLabel} tiene ${coverage.summary.missingDays} ` +
+          `${coverage.summary.missingDays === 1 ? 'día' : 'días'} sin Actividad Diaria: ` +
+          `${shortMissing}${extra}. Programa actividades para evitar días vacíos.`;
+
+        if (config.notify !== false) {
+          const roles =
+            Array.isArray(config.roles) && config.roles.length > 0
+              ? config.roles.map((role: any) => String(role))
+              : ['Super Admin', 'Administrador', 'Docente'];
+
+          const notificationResult =
+            await this.notificationService.createSystemNotificationsForRoles({
+              roles,
+              title,
+              message,
+              event: `DAILY_COVERAGE:${from}`,
+              priority: 2,
+              action: NOTIFICATION_ACTION_OPEN_DAILY_ACTIVITIES,
+              actionLabel: 'Ver actividades diarias',
+              metadata: {
+                type: 'actividad_diaria',
+                from,
+                to,
+              },
+            });
+
+          // Push a los dispositivos de los destinatarios. Best-effort: un fallo
+          // de push no debe marcar el job como fallido.
+          let pushResult: PushSendResult = {
+            success: true,
+            sent: 0,
+            failed: 0,
+            deactivated: 0,
+            skipped: 0,
+            tokens: 0,
+            users: 0,
+          };
+          if (notificationResult.recipients.length > 0) {
+            try {
+              pushResult =
+                await this.pushNotificationService.sendPushToUsers(
+                  notificationResult.recipients,
+                  title,
+                  message,
+                  {
+                    type: 'daily_coverage',
+                    event: `DAILY_COVERAGE:${from}`,
+                    from,
+                    to,
+                    action: NOTIFICATION_ACTION_OPEN_DAILY_ACTIVITIES,
+                    webUrl: '/activity/activity-table?type=actividad_diaria',
+                  },
+                );
+            } catch (error) {
+              this.logger.error(
+                `Error enviando push de cobertura: ${error.message}`,
+              );
+            }
+          }
+
+          // Persistir la métrica de entrega para tendencias. Best-effort: no
+          // debe tumbar el job si la colección de métricas falla.
+          let deliveryStatId: string | null = null;
+          try {
+            const stat = await this.pushDeliveryStatsService.record({
+              jobType: 'CHECK_DAILY_COVERAGE',
+              event: `DAILY_COVERAGE:${from}`,
+              source: 'job',
+              result: pushResult,
+              metadata: {
+                roles,
+                from,
+                to,
+                missingDays: coverage.summary.missingDays,
+              },
+            });
+            deliveryStatId = stat?._id ? String(stat._id) : null;
+          } catch (error) {
+            this.logger.error(
+              `No se pudo guardar la métrica de push: ${error.message}`,
+            );
+          }
+
+          return {
+            success: true,
+            message: `Faltan ${coverage.summary.missingDays} días de cobertura en ${rangeLabel}. Avisos creados: ${notificationResult.created}, existentes: ${notificationResult.existing}. Push enviados: ${pushResult.sent}, fallidos: ${pushResult.failed}, tokens desactivados: ${pushResult.deactivated}.`,
+            output: {
+              coverage,
+              notified: true,
+              notificationResult,
+              pushResult,
+              deliveryStatId,
+            },
+          };
+        }
+
+        return {
+          success: true,
+          message: `Faltan ${coverage.summary.missingDays} días de cobertura en ${rangeLabel}`,
+          output: {
+            coverage,
+            notified: false,
+          },
         };
       },
     });

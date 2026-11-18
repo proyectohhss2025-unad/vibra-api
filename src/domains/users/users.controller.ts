@@ -1,50 +1,51 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
+  NotFoundException,
   Param,
   Patch,
   Post,
-  Delete,
   Query,
   Request,
-  UseInterceptors,
-  UploadedFile,
   Res,
-  NotFoundException,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
+import { FileInterceptor } from '@nestjs/platform-express';
 import {
   ApiBody,
+  ApiConsumes,
   ApiCreatedResponse,
-  ApiProperty,
-  ApiPropertyOptional,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
   ApiParam,
+  ApiProperty,
+  ApiPropertyOptional,
   ApiQuery,
   ApiResponse,
   ApiTags,
-  ApiConsumes,
 } from '@nestjs/swagger';
-import { JwtService } from '@nestjs/jwt';
-import { FileInterceptor } from '@nestjs/platform-express';
-import { memoryStorage } from 'multer';
 import { Response } from 'express';
-import { EventsGateway } from '../../infrastructure/sockets/events.gateway';
+import { memoryStorage } from 'multer';
 import { BypassPermission } from 'src/infrastructure/auth/bypass-permission.decorator';
-import { RequirePermission } from 'src/infrastructure/auth/require-permission.decorator';
 import { Public } from 'src/infrastructure/auth/public.decorator';
+import { RequireAuthenticated } from 'src/infrastructure/auth/require-authenticated.decorator';
+import { RequirePermission } from 'src/infrastructure/auth/require-permission.decorator';
 import { FileUploadService } from '../../infrastructure/file-upload/file-upload.service';
+import { EventsGateway } from '../../infrastructure/sockets/events.gateway';
+import {
+  AvatarGalleryResponseDto,
+  SelectAvatarDto
+} from './dto/avatar-gallery.dto';
 import { CreateUserDto } from './dto/create-user.dto';
+import { UpdateOwnProfileDto } from './dto/update-own-profile.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { User } from './schemas/user.schema';
 import { UsersService } from './users.service';
-import {
-  SelectAvatarDto,
-  AvatarGalleryResponseDto,
-  AvatarGalleryItemDto,
-} from './dto/avatar-gallery.dto';
 
 class UserCreateResponseDto {
   @ApiProperty({
@@ -190,7 +191,7 @@ class UsersPaginatedDto {
 
 @ApiTags('Users')
 @Controller('api/users')
-@RequirePermission('9')
+@RequirePermission('P-ADM-001')
 export class UsersController {
   constructor(
     private readonly usersService: UsersService,
@@ -220,14 +221,14 @@ export class UsersController {
     return { message: 'Evento emitido' };
   }
 
-  @BypassPermission()
+  @RequirePermission('P-ADM-001')
   @Post('create')
   @ApiOperation({
-    summary: 'Crear un usuario',
+    summary: 'Crear un usuario (alta administrativa)',
     description:
-      'Crea un nuevo usuario para el dashboard de administración de participación estudiantil (Vibra). La contraseña se almacena con hash. ' +
-      'Es un endpoint público: si la petición llega sin sesión (registro desde la app mobile), el usuario se crea en estado inactivo ' +
-      'con rol Estudiante y debe ser activado por un docente o administrador desde el dashboard web.',
+      'Crea un nuevo usuario desde el dashboard de administración de participación estudiantil (Vibra). La contraseña se almacena con hash. ' +
+      'Requiere sesión con permiso de gestión de usuarios y respeta el rol enviado en el payload. ' +
+      'El registro público de estudiantes (rol Estudiante forzado y cuenta inactiva) se realiza en POST /api/auth/register, no aquí.',
   })
   @ApiBody({
     type: CreateUserDto,
@@ -238,12 +239,23 @@ export class UsersController {
       'Usuario creado correctamente. Retorna el username del usuario creado.',
     type: UserCreateResponseDto,
   })
+  @ApiResponse({
+    status: 400,
+    description: 'Datos inválidos o rol inexistente/eliminado.',
+  })
+  @ApiResponse({
+    status: 403,
+    description:
+      'Sin permiso de gestión de usuarios, o intento de asignar un rol superior al del solicitante.',
+  })
   async create(@Body() createUserDto: CreateUserDto, @Request() req: any) {
-    // Registro público: no hay usuario autenticado → el usuario se crea inactivo
-    // (pendiente de activación por docente/admin) y con rol Estudiante forzado.
-    const isPublicRegistration = !req.user;
+    // Alta administrativa: el rol enviado se respeta. El registro público de
+    // estudiantes vive en POST /api/auth/register (rol Estudiante + inactivo).
     return this.usersService
-      .create(createUserDto, { isPublic: isPublicRegistration })
+      .create(createUserDto, {
+        isPublic: false,
+        actorRoleName: req.user?.role?.name,
+      })
       .then((response: User) => {
         if (response) {
           const data = {
@@ -282,12 +294,42 @@ export class UsersController {
     return this.usersService.setActive(id, active, editedBy);
   }
 
-  @BypassPermission()
+  /**
+   * Actualiza el perfil del usuario autenticado (app mobile).
+   * Ruta separada del alta/edición administrativa: no requiere permiso de
+   * gestión de usuarios, pero solo permite tocar los datos propios.
+   */
+  @RequireAuthenticated()
+  @Post('me')
+  @ApiOperation({
+    summary: 'Actualizar el perfil del usuario autenticado',
+    description:
+      'Permite a cualquier usuario con sesión válida actualizar sus propios datos personales ' +
+      '(nombre, teléfono, dirección, fecha de nacimiento, género y avatar). ' +
+      'No permite modificar rol, estado, institución, documento, email ni contraseña.',
+  })
+  @ApiBody({
+    type: UpdateOwnProfileDto,
+    description: 'Campos personales a actualizar.',
+  })
+  @ApiOkResponse({ description: 'Perfil actualizado correctamente.' })
+  @ApiResponse({ status: 401, description: 'Sesión requerida.' })
+  async updateMe(
+    @Body() updateOwnProfileDto: UpdateOwnProfileDto,
+    @Request() req: any,
+  ) {
+    const userId = req.user?.sub || req.user?._id;
+    return this.usersService.updateOwnProfile(userId, updateOwnProfileDto);
+  }
+
+  @RequirePermission('P-ADM-001')
   @Post()
   @ApiOperation({
-    summary: 'Actualizar un usuario',
+    summary: 'Actualizar un usuario (gestión administrativa)',
     description:
-      'Actualiza los datos de un usuario por su _id. La contraseña se rehace con hash si se envía en el payload.',
+      'Actualiza los datos de cualquier usuario por su _id. La contraseña se rehace con hash si se envía en el payload. ' +
+      'Requiere sesión con permiso de gestión de usuarios. ' +
+      'Para editar el propio perfil existe POST /api/users/me.',
   })
   @ApiBody({
     type: UpdateUserDto,
@@ -305,8 +347,10 @@ export class UsersController {
     description:
       'Conflicto de unicidad (por ejemplo, email duplicado) al actualizar el usuario.',
   })
-  async update(@Body() updateUserDto: UpdateUserDto) {
-    return this.usersService.update(updateUserDto);
+  async update(@Body() updateUserDto: UpdateUserDto, @Request() req: any) {
+    return this.usersService.update(updateUserDto, {
+      actorRoleName: req.user?.role?.name,
+    });
   }
 
   @Get('all')
@@ -324,7 +368,7 @@ export class UsersController {
   }
 
   // ─── Dashboard: estadísticas generales de usuarios ───
-  @BypassPermission()
+  @RequireAuthenticated()
   @Get('overview-stats')
   @ApiOperation({
     summary: 'Obtener total de usuarios + último usuario registrado',
@@ -338,7 +382,7 @@ export class UsersController {
     return this.usersService.getOverviewStats();
   }
 
-  @BypassPermission()
+  @RequireAuthenticated()
   @Get('count-all-users')
   @ApiOperation({
     summary: 'Obtener el número total de usuarios',
@@ -361,14 +405,20 @@ export class UsersController {
   @ApiOperation({
     summary: 'Listar usuarios con paginación (respuesta encapsulada)',
     description:
-      'Obtiene usuarios y el total de registros. El backend retorna { data, total }.',
+      'Obtiene una página de usuarios y el total de registros. El backend retorna { data, total }. ' +
+      'Sin `rows`, devuelve 8 elementos por página (máximo 100). Orden: más recientes primero.',
   })
+  @ApiQuery({ name: 'page', required: false, example: 1 })
+  @ApiQuery({ name: 'rows', required: false, example: 8 })
   @ApiOkResponse({
     description: 'Listado paginado de usuarios.',
     type: UsersPaginatedDto,
   })
-  async findAllWithPaginate() {
-    return this.usersService.findAllWithPaginate();
+  async findAllWithPaginate(
+    @Query('page') page?: string,
+    @Query('rows') rows?: string,
+  ) {
+    return this.usersService.findAllWithPaginate({ page, rows });
   }
 
   @Get('search/:username')
@@ -393,11 +443,18 @@ export class UsersController {
     return this.usersService.findByUsername(username);
   }
 
-  @BypassPermission()
+  @RequirePermission(['P-ADM-001', 'P-ACT-001', 'P-EVAL-001'])
   @Get('search')
-  @ApiOperation({ summary: 'Buscar usuarios por término' })
+  @ApiOperation({
+    summary: 'Buscar usuarios por término',
+    description:
+      'Búsqueda de apoyo para las pantallas que necesitan elegir un usuario ' +
+      '(gestión de usuarios, respuestas de actividades y respuestas de pre-tests). ' +
+      'Requiere permiso 9, 16 o 15; no está disponible para estudiantes ni para peticiones anónimas.',
+  })
   @ApiQuery({ name: 'searchTerm', required: true, example: 'maya' })
   @ApiOkResponse({ description: 'Usuarios encontrados.', type: [UserDto] })
+  @ApiResponse({ status: 403, description: 'Sin permiso para consultar usuarios.' })
   async search(
     @Query('searchTerm') searchTerm: string,
   ): Promise<{ data: Partial<User>[] }> {
@@ -405,7 +462,6 @@ export class UsersController {
     return { data };
   }
 
-  @BypassPermission()
   @Get('id/:id')
   @ApiOperation({ summary: 'Obtener usuario por id' })
   @ApiParam({ name: 'id', description: 'ID del usuario.' })

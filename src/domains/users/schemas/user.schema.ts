@@ -1,8 +1,8 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Schema as MongooseSchema, Types } from 'mongoose';
-import { Role } from 'src/domains/roles/schemas/role.schema';
 import { Company } from 'src/domains/company/schemas/company.schema';
 import { DocumentType } from 'src/domains/documentType/schemas/documentType.model';
+import { Role } from 'src/domains/roles/schemas/role.schema';
 import { Gender } from 'src/utils/enum';
 import { AvatarGalleryItemTypeEnum } from '../dto/avatar-gallery.dto';
 
@@ -124,3 +124,5 @@ export class User extends Document {
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);
+
+UserSchema.index({ createdAt: -1, _id: -1 });

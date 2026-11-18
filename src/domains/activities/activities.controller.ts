@@ -8,6 +8,7 @@ import {
   Post,
   Put,
   Query,
+  Request,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
@@ -16,14 +17,15 @@ import {
   ApiOkResponse,
   ApiOperation,
   ApiParam,
-  ApiQuery,
-  ApiTags,
   ApiProperty,
   ApiPropertyOptional,
+  ApiQuery,
+  ApiTags,
 } from '@nestjs/swagger';
-import { BypassPermission } from 'src/infrastructure/auth/bypass-permission.decorator';
-import { RequirePermission } from 'src/infrastructure/auth/require-permission.decorator';
 import { UserResponseService } from 'src/domains/userResponses/userResponse.service';
+import { BypassPermission } from 'src/infrastructure/auth/bypass-permission.decorator';
+import { RequireAuthenticated } from 'src/infrastructure/auth/require-authenticated.decorator';
+import { RequirePermission } from 'src/infrastructure/auth/require-permission.decorator';
 import { ActivitiesService } from './activities.service';
 import { ActivityResponseDto } from './dto/activity-response.dto';
 import { CreateActivityDto, UpdateActivityDto } from './dto/activity.dto';
@@ -118,7 +120,7 @@ class ActivitiesPaginatedDto {
 @ApiTags('Activities')
 @ApiBearerAuth()
 @Controller('api/activities')
-@RequirePermission('16')
+@RequirePermission('P-ACT-001')
 export class ActivitiesController {
   constructor(
     private readonly activitiesService: ActivitiesService,
@@ -137,7 +139,7 @@ export class ActivitiesController {
     return this.activitiesService.create(createActivityDto);
   }
 
-  @RequirePermission('P-EST-003')
+  @RequireAuthenticated()
   @Get()
   @ApiOperation({
     summary: 'Listar actividades (paginado + filtro por emoción)',
@@ -299,9 +301,9 @@ export class ActivitiesController {
   @RequirePermission('P-EST-003')
   @Get('check-date')
   @ApiOperation({
-    summary: 'Verificar si ya existe actividad para una fecha',
+    summary: 'Verificar cuántas actividades hay en una fecha',
     description:
-      'Retorna si ya hay una actividad programada para la fecha indicada. Útil para evitar duplicados en el formulario.',
+      'Retorna cuántas actividades hay programadas para la fecha indicada y si existe al menos una. Es informativo: se permiten varias actividades el mismo día.',
   })
   @ApiQuery({
     name: 'date',
@@ -318,7 +320,8 @@ export class ActivitiesController {
     schema: {
       type: 'object',
       properties: {
-        exists: { type: 'boolean' },
+        exists: { type: 'boolean', example: true },
+        count: { type: 'number', example: 2 },
       },
     },
   })
@@ -326,11 +329,44 @@ export class ActivitiesController {
     @Query('date') date: string,
     @Query('excludeId') excludeId?: string,
   ) {
-    const exists = await this.activitiesService.checkDateExists(
+    const count = await this.activitiesService.countActivitiesByDate(
       date,
       excludeId,
     );
-    return { exists };
+    return { exists: count > 0, count };
+  }
+
+  @Get('schedule-counts')
+  @ApiOperation({
+    summary: 'Conteo de actividades por fecha',
+    description:
+      'Devuelve cuántas actividades hay en cada una de las fechas solicitadas. Sirve para señalar en el listado los días con varias actividades.',
+  })
+  @ApiQuery({
+    name: 'dates',
+    required: true,
+    description: 'Lista de fechas separadas por coma en formato YYYY-MM-DD',
+    example: '2026-05-31,2026-06-01',
+  })
+  @ApiOkResponse({
+    schema: {
+      type: 'object',
+      properties: {
+        counts: {
+          type: 'object',
+          additionalProperties: { type: 'number' },
+          example: { '2026-05-31': 3 },
+        },
+      },
+    },
+  })
+  async scheduleCounts(@Query('dates') dates?: string) {
+    const list = String(dates || '')
+      .split(',')
+      .map((d) => d.trim())
+      .filter(Boolean);
+
+    return { counts: await this.activitiesService.countActivitiesByDates(list) };
   }
 
   @Get('all')
@@ -344,7 +380,7 @@ export class ActivitiesController {
   @ApiQuery({
     name: 'type',
     required: false,
-    enum: ['all', 'reto', 'evento_personal', 'actividad_pares', 'otro'],
+    enum: ['all', 'reto', 'evento_personal', 'actividad_diaria', 'otro'],
     description: 'Filtrar por tipo de actividad (default: all).',
   })
   @ApiQuery({
@@ -388,7 +424,190 @@ export class ActivitiesController {
     return { data };
   }
 
-  @RequirePermission('P-EST-003')
+  @RequireAuthenticated()
+  @Get('today')
+  @ApiOperation({
+    summary: 'Actividades disponibles para hoy',
+    description:
+      'Lista las Actividades Diarias (`type: actividad_diaria`) activas programadas para la fecha actual (día Colombia) y las que no tienen fecha de programación (disponibles siempre hasta completarse). Por defecto sólo devuelve ese tipo; use `type=all` para todos los tipos. Si se envía userId, cada actividad incluye si el usuario ya la completó y su puntaje.',
+  })
+  @ApiQuery({
+    name: 'userId',
+    required: false,
+    description: 'ID del usuario para marcar actividades completadas',
+  })
+  @ApiQuery({
+    name: 'type',
+    required: false,
+    enum: ['all', 'actividad_diaria', 'reto', 'evento_personal', 'otro'],
+    description:
+      'Filtra por tipo. Por defecto devuelve sólo Actividad Diaria (actividad_diaria); ' +
+      'use type=all para ver todos los tipos (vistas administrativas).',
+  })
+  @ApiOkResponse({
+    description: 'Listado de actividades del día y su estado.',
+    schema: {
+      type: 'object',
+      properties: {
+        activities: { type: 'array', items: { type: 'object' } },
+        count: { type: 'number', example: 2 },
+        schedule: {
+          type: 'object',
+          properties: {
+            date: { type: 'string', format: 'date-time' },
+            status: { type: 'string', example: 'active' },
+          },
+        },
+      },
+    },
+  })
+  getTodayActivities(
+    @Query('userId') userId?: string,
+    @Query('type') type?: string,
+  ) {
+    return this.activitiesService.getTodaysActivities(userId, { type });
+  }
+
+  @RequireAuthenticated()
+  @Get('my-history')
+  @ApiOperation({
+    summary: 'Historial del participante (actividades respondidas o completadas)',
+    description:
+      'Une las respuestas a preguntas (UserResponse) y las completaciones de juegos ' +
+      '(ActivityCompletion) del usuario autenticado. Devuelve estado por actividad ' +
+      '(completada | en_progreso), puntaje y los conteos reales del historial.',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    description: 'Máximo de actividades a devolver (default 100)',
+  })
+  @ApiOkResponse({
+    description: 'Historial del participante con conteos.',
+    schema: {
+      type: 'object',
+      properties: {
+        items: { type: 'array', items: { type: 'object' } },
+        counts: {
+          type: 'object',
+          properties: {
+            total: { type: 'number', example: 7 },
+            completed: { type: 'number', example: 5 },
+            inProgress: { type: 'number', example: 2 },
+          },
+        },
+      },
+    },
+  })
+  getMyHistory(@Request() req: any, @Query('limit') limit?: string) {
+    // El usuario sale del token: no se acepta un userId arbitrario por query.
+    const userId = req?.user?.sub || req?.user?._id;
+    const parsedLimit = Number(limit);
+    return this.activitiesService.getMyHistory(userId?.toString(), {
+      limit: Number.isFinite(parsedLimit) && parsedLimit > 0 ? parsedLimit : 100,
+    });
+  }
+
+  @RequireAuthenticated()
+  @Get('my-board')
+  @ApiOperation({
+    summary: 'Tablero del participante (pendientes, en progreso y completadas)',
+    description:
+      'Devuelve todas las actividades activas de un tipo con su estado para el usuario autenticado: ' +
+      'pendiente (sin respuestas), en_progreso (respondió algunas preguntas) o completada. ' +
+      'Incluye conteos para las tarjetas de Retos y E-Personal.',
+  })
+  @ApiQuery({
+    name: 'type',
+    required: false,
+    description:
+      'Filtra por tipo: reto | evento_personal | actividad_diaria | otro',
+  })
+  @ApiOkResponse({
+    description: 'Actividades con estado y conteos.',
+    schema: {
+      type: 'object',
+      properties: {
+        activities: { type: 'array', items: { type: 'object' } },
+        counts: {
+          type: 'object',
+          properties: {
+            total: { type: 'number', example: 5 },
+            pending: { type: 'number', example: 2 },
+            inProgress: { type: 'number', example: 1 },
+            completed: { type: 'number', example: 2 },
+          },
+        },
+      },
+    },
+  })
+  getMyBoard(@Request() req: any, @Query('type') type?: string) {
+    // El usuario sale del token: no se acepta un userId arbitrario por query.
+    const userId = req?.user?.sub || req?.user?._id;
+    return this.activitiesService.getActivityBoard(userId?.toString(), {
+      type,
+    });
+  }
+
+  @Get('daily-coverage')
+  @ApiOperation({
+    summary: 'Cobertura de Actividad Diaria',
+    description:
+      'Cuenta las Actividades Diarias (`actividad_diaria`) activas programadas por día en un rango ' +
+      '(por defecto, la semana actual lunes-domingo en Colombia). Las Actividades Diarias sin fecha ' +
+      'cubren todos los días porque quedan disponibles hasta completarse.',
+  })
+  @ApiQuery({
+    name: 'from',
+    required: false,
+    description: 'Fecha inicial YYYY-MM-DD (default: lunes de la semana actual)',
+    example: '2026-10-26',
+  })
+  @ApiQuery({
+    name: 'to',
+    required: false,
+    description: 'Fecha final YYYY-MM-DD (default: domingo de la semana actual)',
+    example: '2026-11-01',
+  })
+  @ApiOkResponse({
+    description: 'Cobertura por día y resumen del rango.',
+    schema: {
+      type: 'object',
+      properties: {
+        from: { type: 'string', example: '2026-10-26' },
+        to: { type: 'string', example: '2026-11-01' },
+        days: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              date: { type: 'string', example: '2026-10-26' },
+              count: { type: 'number', example: 1 },
+              covered: { type: 'boolean', example: true },
+            },
+          },
+        },
+        summary: {
+          type: 'object',
+          properties: {
+            totalDays: { type: 'number', example: 7 },
+            coveredDays: { type: 'number', example: 5 },
+            missingDays: { type: 'number', example: 2 },
+            percentage: { type: 'number', example: 71 },
+          },
+        },
+        undatedCount: { type: 'number', example: 0 },
+      },
+    },
+  })
+  getDailyCoverage(
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    return this.activitiesService.getDailyActivityCoverage({ from, to });
+  }
+
+  @RequireAuthenticated()
   @Get(':id')
   @ApiOperation({
     summary: 'Consultar una actividad por id',
@@ -440,7 +659,7 @@ export class ActivitiesController {
     return this.activitiesService.softDelete(id);
   }
 
-  @RequirePermission('P-EST-003')
+  @RequireAuthenticated()
   @Get('emotions/list')
   @ApiOperation({
     summary: 'Listar emociones disponibles (por actividades)',
@@ -455,7 +674,7 @@ export class ActivitiesController {
     return this.activitiesService.getAvailableEmotions();
   }
 
-  @RequirePermission('P-EST-003')
+  @RequireAuthenticated()
   @Get('user/:userId')
   @ApiOperation({
     summary: 'Listar actividades de un usuario',
@@ -471,7 +690,7 @@ export class ActivitiesController {
     name: 'type',
     required: false,
     description: 'Filtrar por tipo de actividad',
-    enum: ['reto', 'evento_personal', 'actividad_pares', 'otro'],
+    enum: ['reto', 'evento_personal', 'actividad_diaria', 'otro'],
     example: 'reto',
   })
   @ApiQuery({
@@ -511,7 +730,7 @@ export class ActivitiesController {
     });
   }
 
-  @RequirePermission('P-EST-003')
+  @RequireAuthenticated()
   @Get('available/:userId')
   @ApiOperation({
     summary: 'Listar actividades disponibles de un usuario',
@@ -527,7 +746,7 @@ export class ActivitiesController {
     name: 'type',
     required: false,
     description: 'Filtrar por tipo de actividad',
-    enum: ['reto', 'evento_personal', 'actividad_pares', 'otro'],
+    enum: ['reto', 'evento_personal', 'actividad_diaria', 'otro'],
     example: 'reto',
   })
   @ApiQuery({
@@ -567,12 +786,12 @@ export class ActivitiesController {
     });
   }
 
-  @RequirePermission('P-EST-003')
+  @RequireAuthenticated()
   @Get('daily/current')
   @ApiOperation({
     summary: 'Obtener actividad del día',
     description:
-      'Retorna la actividad activa creada para el día actual y su estado de agenda.',
+      'Retorna la Actividad Diaria (tipo `actividad_diaria`) activa creada para el día actual y su estado de agenda.',
   })
   @ApiOkResponse({
     description: 'Actividad diaria y estado.',
@@ -690,7 +909,7 @@ export class ActivitiesController {
    * Verifica si un usuario ya ha respondido una actividad.
    * GET /api/activities/:id/check-response?userId=xxx
    */
-  @RequirePermission('P-EST-006')
+  @RequireAuthenticated()
   @Get(':id/check-response')
   @ApiOperation({
     summary: 'Verificar si un usuario ya respondió una actividad',
@@ -702,6 +921,17 @@ export class ActivitiesController {
     @Param('id') id: string,
     @Query('userId') userId: string,
   ) {
-    return this.userResponseService.checkUserResponse(userId, id);
+    const status = await this.userResponseService.checkUserResponse(userId, id);
+    if (!status?.alreadyResponded) return status;
+
+    // La actividad se responde pregunta a pregunta: se considera completada
+    // sólo cuando existe una respuesta por cada pregunta de la actividad.
+    const activity = await this.activitiesService.findById(id);
+    const questionsCount = activity?.questions?.length || 0;
+    if (questionsCount > 0 && (status.answeredCount || 0) < questionsCount) {
+      return { ...status, alreadyResponded: false };
+    }
+
+    return status;
   }
 }

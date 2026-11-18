@@ -23,6 +23,17 @@ import { BlockedIpCacheService } from '../security/cache/blocked-ip-cache.servic
 export class ThrottlerGuard extends NestThrottlerGuard {
   // Paths that should be excluded from rate limiting
   private readonly skipPaths = ['/api', '/health', '/docs'];
+  /**
+   * Rutas críticas que SÍ se limitan aunque el resto de `/api` se omita.
+   * Son los endpoints públicos de registro y emisión de captcha: sin esta
+   * excepción quedarían sin rate limiting porque `skipPaths` incluye `/api`.
+   */
+  private readonly enforcedPaths = new Set([
+    '/api/auth/register',
+    '/api/auth/register-docente',
+    '/api/auth/login',
+    '/api/captcha/challenge',
+  ]);
   // IPs internas que nunca se bloquean
   private readonly internalIps = new Set([
     '127.0.0.1',
@@ -67,6 +78,39 @@ export class ThrottlerGuard extends NestThrottlerGuard {
 
     // Fall back to the connection remote address
     return request.ip || request.connection?.remoteAddress || 'unknown';
+  }
+
+  /**
+   * Ruta normalizada (sin query string ni barras finales).
+   */
+  private getRequestPath(request: any): string {
+    const raw = request?.path || request?.url || '';
+    const withoutQuery = String(raw).split('?')[0].replace(/\/+$/, '');
+    return withoutQuery || '/';
+  }
+
+  private isEnforcedPath(request: any): boolean {
+    return this.enforcedPaths.has(this.getRequestPath(request));
+  }
+
+  /**
+   * Tracker del rate limiting.
+   *
+   * En el login se limita por IP + usuario (no solo por IP): así una
+   * institución que comparte IP pública (NAT) no bloquea a todos sus
+   * estudiantes porque una sola cuenta intenta muchas contraseñas.
+   */
+  protected async getTracker(req: Record<string, any>): Promise<string> {
+    const ip = this.getRealIp(req);
+
+    if (this.getRequestPath(req) === '/api/auth/login') {
+      const username = String(req?.body?.username ?? '')
+        .trim()
+        .toLowerCase();
+      return username ? `${ip}|${username}` : ip;
+    }
+
+    return ip;
   }
 
   /**
@@ -125,7 +169,15 @@ export class ThrottlerGuard extends NestThrottlerGuard {
       return await super.handleRequest(requestProps);
     } catch (error) {
       // ── 4. Si excedió límite → bloquear IP automáticamente ────────
-      if (error instanceof ThrottlerException && !this.internalIps.has(ip)) {
+      // En las rutas críticas de registro no se bloquea la IP: muchas
+      // instituciones comparten una IP pública (NAT) y un pico de registros
+      // legítimos dejaría a toda la institución sin servicio. El captcha y su
+      // contador de fallos se encargan del abuso real.
+      if (
+        error instanceof ThrottlerException &&
+        !this.internalIps.has(ip) &&
+        !this.isEnforcedPath(request)
+      ) {
         this.blockIPAsync(ip);
       }
       throw error;
@@ -147,7 +199,9 @@ export class ThrottlerGuard extends NestThrottlerGuard {
       `Rate limit exceeded - IP: ${ip}, Method: ${method}, URL: ${url}, User-Agent: ${userAgent}`,
     );
 
-    throw new ThrottlerException('Too many requests, please try again later.');
+    throw new ThrottlerException(
+      'Demasiadas solicitudes. Espera un momento e intenta de nuevo.',
+    );
   }
 
   /**
@@ -162,6 +216,11 @@ export class ThrottlerGuard extends NestThrottlerGuard {
     }
 
     const request = context.switchToHttp().getRequest();
+
+    // Rutas críticas (registro/captcha): nunca se omiten.
+    if (this.isEnforcedPath(request)) {
+      return false;
+    }
 
     // Skip for specific paths (API docs, health checks, etc.)
     if (this.skipPaths.some((path) => request.url.startsWith(path))) {

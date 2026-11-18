@@ -1,19 +1,19 @@
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
 import { MongooseModule } from '@nestjs/mongoose';
 import { LoggerModule } from '../../helpers/logger/logger.module';
 import { AuthMiddleware } from '../../infrastructure/auth/auth.middleware';
-import { EventsGateway } from '../../infrastructure/sockets/events.gateway';
 import { FileUploadModule } from '../../infrastructure/file-upload/file-upload.module';
-import { User, UserSchema } from './schemas/user.schema';
-import { UsersController } from './users.controller';
-import { UsersService } from './users.service';
-import { JwtService } from '@nestjs/jwt';
-import { Role, RoleSchema } from '../roles/schemas/role.schema';
+import { SocketsModule } from '../../infrastructure/sockets/sockets.module';
+import { Config, ConfigSchema } from '../config/schemas/config.schema';
 import {
   Participant,
   ParticipantSchema,
 } from '../participant/schemas/participant.schema';
-import { Config, ConfigSchema } from '../config/schemas/config.schema';
+import { Role, RoleSchema } from '../roles/schemas/role.schema';
+import { User, UserSchema } from './schemas/user.schema';
+import { UsersController } from './users.controller';
+import { UsersService } from './users.service';
 
 @Module({
   imports: [
@@ -25,9 +25,10 @@ import { Config, ConfigSchema } from '../config/schemas/config.schema';
     ]),
     LoggerModule,
     FileUploadModule,
+    SocketsModule,
   ],
   controllers: [UsersController],
-  providers: [UsersService, EventsGateway, JwtService],
+  providers: [UsersService, JwtService],
   exports: [UsersService],
 })
 export class UsersModule implements NestModule {

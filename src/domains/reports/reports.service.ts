@@ -2,20 +2,22 @@ import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Activity } from 'src/domains/activities/schemas/activity.schema';
-import { UserResponse } from 'src/domains/userResponses/schemas/userResponse.schema';
 import { Emotion } from 'src/domains/emotions/schemas/emotion.schema';
+import { Enrollment } from 'src/domains/enrollment/schemas/enrollment.schema';
 import { Participant } from 'src/domains/participant/schemas/participant.schema';
+import { UserResponse } from 'src/domains/userResponses/schemas/userResponse.schema';
 import { User } from 'src/domains/users/schemas/user.schema';
 import { ReportFilterDto } from './dto/report-filter.dto';
 import type {
-  KpiReport,
   ActivityReportItem,
-  UserReportItem,
   EmotionReportItem,
-  TrendPoint,
-  ScoreDistribution,
+  KpiReport,
   PaginatedResult,
+  ScoreDistribution,
+  ScoreReport,
+  TrendPoint,
   UserProfile,
+  UserReportItem,
 } from './interfaces/report.interface';
 
 const COLOMBIA_TZ = 'America/Bogota';
@@ -29,6 +31,8 @@ export class ReportsService {
     @InjectModel(Emotion.name) private emotionModel: Model<Emotion>,
     @InjectModel(Participant.name) private participantModel: Model<Participant>,
     @InjectModel(User.name) private userModel: Model<User>,
+    @InjectModel(Enrollment.name)
+    private enrollmentModel: Model<Enrollment>,
   ) {}
 
   // ─── helpers ────────────────────────────────────
@@ -68,6 +72,60 @@ export class ReportsService {
       }
     }
 
+    let allowedUsers: Types.ObjectId[] | null = null;
+
+    if (filter.courseId) {
+      let courseObjectId: Types.ObjectId | null = null;
+      try {
+        courseObjectId = new Types.ObjectId(filter.courseId);
+      } catch {
+        courseObjectId = null;
+      }
+      if (!courseObjectId) {
+        match.user = { $in: [] };
+        return match;
+      }
+      const enrollments = await this.enrollmentModel
+        .find({
+          courseId: courseObjectId,
+          status: { $in: ['activo', 'completado'] },
+        })
+        .select('userId')
+        .lean()
+        .exec();
+      allowedUsers = enrollments
+        .map((row: any) => row.userId)
+        .filter(Boolean) as Types.ObjectId[];
+    }
+
+    if (filter.userId) {
+      let userObjectId: Types.ObjectId | null = null;
+      try {
+        userObjectId = new Types.ObjectId(filter.userId);
+      } catch {
+        userObjectId = null;
+      }
+      if (!userObjectId) {
+        match.user = { $in: [] };
+        return match;
+      }
+      if (allowedUsers) {
+        // Intersección: el usuario pedido, solo si está inscrito en el curso.
+        match.user = {
+          $in: allowedUsers.filter(
+            (id) => String(id) === String(userObjectId),
+          ),
+        };
+      } else {
+        match.user = userObjectId;
+      }
+      return match;
+    }
+
+    if (allowedUsers) {
+      match.user = { $in: allowedUsers };
+    }
+
     return match;
   }
 
@@ -100,10 +158,14 @@ export class ReportsService {
       },
     ]);
 
-    // Actividades activas
-    const activeActivities = await this.activityModel.countDocuments({
-      isActive: true,
-    });
+    const activitiesWithResponses = await this.userResponseModel
+      .distinct('activity', dateMatch)
+      .exec();
+    const activeActivities = activitiesWithResponses.filter(Boolean).length;
+
+    // Se conserva el total histórico por separado, con su propio nombre.
+    const totalActiveActivities =
+      await this.activityModel.countDocuments({ isActive: true });
 
     // Respuestas de hoy en Colombia
     const now = new Date();
@@ -122,6 +184,7 @@ export class ReportsService {
       totalScore: kpiResult?.totalScore ?? 0,
       todayResponses,
       activeActivities,
+      totalActiveActivities,
     };
   }
 
@@ -194,7 +257,9 @@ export class ReportsService {
                 totalResponses: 1,
                 uniqueUsersCount: 1,
                 avgScore: { $round: ['$avgScore', 1] },
-                avgTimeSeconds: { $round: ['$avgTime', 0] },
+                avgTimeSeconds: {
+                  $round: [{ $divide: ['$avgTime', 1000] }, 0],
+                },
               },
             },
           ],
@@ -301,7 +366,11 @@ export class ReportsService {
                 totalResponses: 1,
                 totalScore: 1,
                 avgScore: { $round: ['$avgScore', 1] },
-                totalTimeSeconds: { $round: ['$totalTime', 0] },
+                // MILISEGUNDOS → segundos. `formatTime` del panel trata el valor
+                // como segundos; sin convertir, 173 139 "h" eran 173,1 h.
+                totalTimeSeconds: {
+                  $round: [{ $divide: ['$totalTime', 1000] }, 0],
+                },
                 level: { $ifNull: ['$level', ''] },
                 currentStreak: { $ifNull: ['$currentStreak', 0] },
                 lastActivityDate: { $ifNull: ['$lastActivityDate', ''] },
@@ -523,32 +592,67 @@ export class ReportsService {
 
   // ─── Scores Distribution ────────────────────────
 
-  async getScores(filter: ReportFilterDto): Promise<ScoreDistribution[]> {
+  /**
+   * Distribución por rangos de puntaje, con el promedio REAL del mismo filtro.
+   *
+   * El promedio se calcula en el servidor con
+   * el mismo `$match`, así que coincide con el de Panorama.
+   */
+  async getScores(filter: ReportFilterDto): Promise<ScoreReport> {
     const dateMatch = await this.buildUserResponseMatch(filter);
     if (filter.activityId) {
-      dateMatch.activity = filter.activityId;
+      // El campo `activity` es ObjectId: compararlo con un string devolvía
+      // siempre vacío.
+      let activityObjectId: Types.ObjectId | null = null;
+      try {
+        activityObjectId = new Types.ObjectId(filter.activityId);
+      } catch {
+        activityObjectId = null;
+      }
+      dateMatch.activity = activityObjectId ?? { $in: [] };
     }
 
     const boundaries = [0, 20, 40, 60, 80, 100];
 
-    const results = await this.userResponseModel.aggregate([
-      { $match: dateMatch },
-      {
-        $bucket: {
-          groupBy: '$score',
-          boundaries,
-          default: '100+',
-          output: { count: { $sum: 1 } },
+    const [results, aggregate] = await Promise.all([
+      this.userResponseModel.aggregate([
+        { $match: dateMatch },
+        {
+          $bucket: {
+            groupBy: '$score',
+            boundaries,
+            default: '100+',
+            output: { count: { $sum: 1 } },
+          },
         },
-      },
+      ]),
+      this.userResponseModel.aggregate([
+        { $match: dateMatch },
+        {
+          $group: {
+            _id: null,
+            avgScore: { $avg: '$score' },
+            totalResponses: { $sum: 1 },
+            maxScore: { $max: '$score' },
+          },
+        },
+      ]),
     ]);
 
     const total = results.reduce((acc, r) => acc + r.count, 0);
+    const stats = aggregate?.[0] ?? null;
 
-    return results.map((r) => ({
+    const buckets: ScoreDistribution[] = results.map((r) => ({
       range: r._id === '100+' ? '100' : `${r._id}-${r._id + 19}`,
       count: r.count,
       percentage: total > 0 ? Math.round((r.count / total) * 100) : 0,
     }));
+
+    return {
+      buckets,
+      totalResponses: stats?.totalResponses ?? 0,
+      avgScore: stats?.avgScore != null ? Math.round(stats.avgScore * 10) / 10 : 0,
+      maxScore: stats?.maxScore ?? 0,
+    };
   }
 }

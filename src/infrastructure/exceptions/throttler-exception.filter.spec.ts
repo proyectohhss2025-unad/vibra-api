@@ -1,8 +1,31 @@
+import { jest } from '@jest/globals';
 import { Test, TestingModule } from '@nestjs/testing';
 import { ArgumentsHost, HttpStatus } from '@nestjs/common';
-import { ThrottlerException } from '@nestjs/throttler';
-import { ThrottlerExceptionFilter } from './throttler-exception.filter';
 import { AppLoggerService } from '../../helpers/logger/logger.service';
+
+/**
+ * `@nestjs/throttler` se publica como CommonJS y hace `require` de un
+ * `@nestjs/common` que es ESM: en Jest ESM el módulo no carga y la suite no
+ * arranca («Must use import to load ES Module»). No existe versión ESM publicada.
+ *
+ * Esta prueba examina **nuestro** filtro, no el paquete, así que se sustituye por
+ * el mínimo que el filtro necesita: la clase de la excepción.
+ *
+ * El `import` del filtro es dinámico a propósito: los `import` estáticos se
+ * evalúan antes que cualquier sentencia, así que cargarían el paquete real antes
+ * de registrar el mock.
+ */
+jest.unstable_mockModule('@nestjs/throttler', () => ({
+  ThrottlerException: class ThrottlerException extends Error {
+    constructor(message = 'ThrottlerException') {
+      super(message);
+      this.name = 'ThrottlerException';
+    }
+  },
+}));
+
+const { ThrottlerException } = await import('@nestjs/throttler');
+const { ThrottlerExceptionFilter } = await import('./throttler-exception.filter');
 
 describe('ThrottlerExceptionFilter', () => {
     let filter: ThrottlerExceptionFilter;

@@ -1,3 +1,4 @@
+import { ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsEmail,
   IsNotEmpty,
@@ -33,6 +34,24 @@ export class RegisterDto {
   @IsOptional()
   @IsString()
   typeDocument?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Tipo de documento del usuario. Alias usado por la app mobile (RegisterForm).',
+    example: '66c9cce47e6a95e98116c0a1',
+  })
+  @IsOptional()
+  @IsString()
+  documentType?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Institución educativa (compañía) seleccionada durante el registro mobile.',
+    example: '66c9cce47e6a95e98116c0ac',
+  })
+  @IsOptional()
+  @IsString()
+  company?: string;
 
   @IsOptional()
   @IsString()

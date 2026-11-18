@@ -108,6 +108,7 @@ export class UserResponseService {
     alreadyResponded: boolean;
     score?: number;
     respondedAt?: Date;
+    answeredCount?: number;
   } | null> {
     if (!userId || !activityId) return null;
     try {
@@ -116,16 +117,17 @@ export class UserResponseService {
           user: new Types.ObjectId(userId),
           activity: new Types.ObjectId(activityId),
         })
-        .select('score endTime')
+        .select('score endTime responses')
         .lean()
         .exec();
 
-      if (!response) return { alreadyResponded: false };
+      if (!response) return { alreadyResponded: false, answeredCount: 0 };
 
       return {
         alreadyResponded: true,
         score: response.score,
         respondedAt: response.endTime,
+        answeredCount: (response.responses || []).length,
       };
     } catch {
       return { alreadyResponded: false };

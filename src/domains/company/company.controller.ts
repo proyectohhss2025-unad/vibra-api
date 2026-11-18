@@ -8,22 +8,22 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
+import {
+  ApiBody,
+  ApiOperation,
+  ApiQuery,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import { BypassPermission } from 'src/infrastructure/auth/bypass-permission.decorator';
 import { RequirePermission } from 'src/infrastructure/auth/require-permission.decorator';
 import { CompanyService } from './company.service';
 import { CreateCompanyDto } from './dto/create-company.dto';
 import { UpdateCompanyDto } from './dto/update-company.dto';
-import {
-  ApiTags,
-  ApiOperation,
-  ApiBody,
-  ApiResponse,
-  ApiQuery,
-} from '@nestjs/swagger';
 
 @ApiTags('Company')
 @Controller('api/company')
-@RequirePermission('10')
+@RequirePermission('P-ADM-002')
 export class CompanyController {
   constructor(private readonly companyService: CompanyService) {}
 

@@ -1,12 +1,17 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
+  HttpCode,
+  HttpException,
+  InternalServerErrorException,
+  Logger,
   Post,
   Query,
   Request,
-  UnauthorizedException,
 } from '@nestjs/common';
+import { InjectConnection } from '@nestjs/mongoose';
 import {
   ApiBody,
   ApiOkResponse,
@@ -15,49 +20,180 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
+import mongoose from 'mongoose';
 import { Public } from 'src/infrastructure/auth/public.decorator';
 import { RequirePermission } from 'src/infrastructure/auth/require-permission.decorator';
+import { CAPTCHA_FLOW_REGISTER } from 'src/infrastructure/captcha/captcha.constants';
+import { CaptchaService } from 'src/infrastructure/captcha/captcha.service';
+import { getClientIp } from 'src/infrastructure/captcha/request-ip.util';
+import { RolesService } from '../roles/roles.service';
 import { UsersService } from '../users/users.service';
 import { AuthService } from './auth.service';
-import { LoginDto } from './dto/login.dto';
-import { RegisterDto } from './dto/register.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
-import { RolesService } from '../roles/roles.service';
+import { LoginDto } from './dto/login.dto';
+import { PublicRegisterDto } from './dto/public-register.dto';
+import { RegisterDto } from './dto/register.dto';
 
 @Controller('api/auth')
 @ApiTags('Gestión de autenticación de usuarios')
 export class AuthController {
+  private readonly logger = new Logger(AuthController.name);
+
   constructor(
     private readonly authService: AuthService,
     private readonly usersService: UsersService,
     private readonly rolesService: RolesService,
+    private readonly captchaService: CaptchaService,
+    @InjectConnection() private readonly connection: mongoose.Connection,
   ) {}
 
   @Public()
   @Post('health')
-  @ApiOperation({ summary: 'Verificar salud del servicio de autenticación' })
-  @ApiOkResponse({ description: 'Estado OK.', schema: { type: 'object' } })
+  @HttpCode(200)
+  @ApiOperation({
+    summary:
+      'Verificar salud del servicio de autenticación y de la base de datos',
+  })
+  @ApiOkResponse({
+    description:
+      'Estado del API y de la conexión a MongoDB. Siempre responde 200: el cliente debe ' +
+      'inspeccionar `status` y `mongo.ok` para distinguir “API caído” de “API en línea sin base de datos”.',
+    schema: {
+      type: 'object',
+      properties: {
+        status: { type: 'string', example: 'Ok' },
+        uptimeSeconds: { type: 'number', example: 3600 },
+        mongo: {
+          type: 'object',
+          properties: {
+            ok: { type: 'boolean', example: true },
+            readyState: { type: 'number', example: 1 },
+            readyStateLabel: { type: 'string', example: 'connected' },
+            latencyMs: { type: 'number', example: 3 },
+            error: { type: 'string', nullable: true },
+          },
+        },
+      },
+    },
+  })
   async health() {
-    return { status: 'Ok' };
+    const mongo = await this.checkMongo();
+    return {
+      // "Degraded" en lugar de lanzar 5xx: el SPA necesita leer el cuerpo para
+      // mostrar un mensaje distinto al de “El API no se encuentra en línea”.
+      status: mongo.ok ? 'Ok' : 'Degraded',
+      uptimeSeconds: Math.round(process.uptime()),
+      mongo,
+    };
+  }
+
+  /**
+   * Estado real de la conexión a MongoDB.
+   *
+   * Se consulta `readyState` antes del `ping` para no quedarse esperando el
+   * buffer de Mongoose (10 s) cuando la conexión está caída.
+   */
+  private async checkMongo(): Promise<{
+    ok: boolean;
+    readyState: number;
+    readyStateLabel: string;
+    latencyMs: number;
+    error?: string;
+  }> {
+    const labels = ['disconnected', 'connected', 'connecting', 'disconnecting'];
+    const readyState = this.connection?.readyState ?? 0;
+    const readyStateLabel = labels[readyState] ?? 'unknown';
+    const startedAt = Date.now();
+
+    if (readyState !== 1 || !this.connection.db) {
+      return {
+        ok: false,
+        readyState,
+        readyStateLabel,
+        latencyMs: 0,
+        error: `Conexión no disponible (${readyStateLabel})`,
+      };
+    }
+
+    try {
+      await this.connection.db.admin().ping();
+      return {
+        ok: true,
+        readyState,
+        readyStateLabel,
+        latencyMs: Date.now() - startedAt,
+      };
+    } catch (error: any) {
+      return {
+        ok: false,
+        readyState,
+        readyStateLabel,
+        latencyMs: Date.now() - startedAt,
+        error: error?.message ?? 'ping falló',
+      };
+    }
   }
 
   @Public()
   @Post('register')
-  @ApiOperation({ summary: 'Registrar usuario' })
-  @ApiBody({ type: RegisterDto })
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @ApiOperation({
+    summary: 'Registrar usuario (requiere captcha)',
+    description:
+      'Registro público desde la app móvil. Exige un reto de captcha vigente ' +
+      '(GET /api/captcha/challenge), aplica límite de peticiones por IP y ' +
+      'crea la cuenta inactiva a la espera de aprobación.',
+  })
+  @ApiBody({ type: PublicRegisterDto })
   @ApiResponse({ status: 201, description: 'Usuario registrado.' })
-  async register(@Body() registerDto: RegisterDto) {
+  @ApiResponse({
+    status: 400,
+    description:
+      'Datos inválidos o captcha inválido/expirado (campo `code` con el motivo).',
+  })
+  @ApiResponse({
+    status: 409,
+    description: 'Usuario, documento o email ya registrado.',
+  })
+  @ApiResponse({
+    status: 429,
+    description: 'Demasiadas solicitudes. Espera un momento.',
+  })
+  async register(
+    @Body() registerDto: PublicRegisterDto,
+    @Request() request: any,
+  ) {
+    const ip = getClientIp(request);
+
+    // Honeypot: una persona nunca ve este campo; un bot que rellena todo sí.
+    if (registerDto.website?.trim()) {
+      this.logger.warn(`[auth/register] Honeypot activado desde ${ip}`);
+      throw new BadRequestException(
+        'No pudimos procesar el registro. Intenta de nuevo.',
+      );
+    }
+
+    // Verificación anti-bot antes de tocar la base de datos.
+    await this.captchaService.verifyOrThrow({
+      challengeId: registerDto.captchaId,
+      answer: registerDto.captchaAnswer,
+      ip,
+      flow: CAPTCHA_FLOW_REGISTER,
+    });
+
     try {
       // Asignar rol "Estudiante" automáticamente
       const estudianteRole = await this.rolesService.findByName('Estudiante');
 
       // Registro público: el usuario se crea INACTIVO (isPublic: true) y debe ser
       // activado por un docente o administrador antes de poder iniciar sesión.
-      const user = await this.usersService.create(
+      // Solo se aceptan campos del formulario: nunca se hace spread del body
+      // completo (evita mass assignment de isActive, role, totalScore, etc.).
+      await this.usersService.create(
         {
-          ...registerDto,
+          ...this.buildRegistrationPayload(registerDto),
           role: estudianteRole._id.toString(),
-          avatar: registerDto.avatar || 'default-avatar.svg',
         },
         { isPublic: true },
       );
@@ -66,18 +202,26 @@ export class AuthController {
           'Usuario registrado exitosamente. Tu cuenta está pendiente de aprobación por un docente o administrador.',
       };
     } catch (error) {
-      console.error(error);
       if (error instanceof Error && error.message === 'Role not found') {
-        throw new UnauthorizedException(
-          'Rol Estudiante no configurado. Contacte al administrador.',
+        throw new InternalServerErrorException(
+          'Rol Estudiante no configurado en el sistema. Contacta al administrador.',
         );
       }
-      throw new UnauthorizedException('Registration failed');
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      this.logger.error(
+        `[auth/register] Fallo inesperado: ${(error as any)?.message ?? error}`,
+      );
+      throw new InternalServerErrorException(
+        'No pudimos completar el registro. Intenta de nuevo en unos minutos.',
+      );
     }
   }
 
-  @RequirePermission('9')
+  @RequirePermission('P-ADM-001')
   @Post('register-docente')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @ApiOperation({ summary: 'Registrar docente (solo admin)' })
   @ApiBody({ type: RegisterDto })
   @ApiResponse({ status: 201, description: 'Docente registrado.' })
@@ -89,30 +233,68 @@ export class AuthController {
     try {
       const docenteRole = await this.rolesService.findByName('Docente');
 
-      const user = await this.usersService.create({
-        ...registerDto,
+      await this.usersService.create({
+        ...this.buildRegistrationPayload(registerDto),
         role: docenteRole._id.toString(),
-        avatar: registerDto.avatar || 'default-avatar.svg',
       });
       return { message: 'Docente registrado exitosamente' };
     } catch (error) {
-      console.error(error);
       if (error instanceof Error && error.message === 'Role not found') {
-        throw new UnauthorizedException(
+        throw new InternalServerErrorException(
           'Rol Docente no configurado. Ejecute el seed seed-docente-rol.ts primero.',
         );
       }
-      throw new UnauthorizedException('Docente registration failed');
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      this.logger.error(
+        `[auth/register-docente] Fallo inesperado: ${(error as any)?.message ?? error}`,
+      );
+      throw new InternalServerErrorException(
+        'No pudimos registrar al docente. Intenta de nuevo en unos minutos.',
+      );
     }
+  }
+
+  /**
+   * Construye el payload de creación con una lista blanca de campos.
+   * Evita que el registro público acepte propiedades arbitrarias del cliente.
+   */
+  private buildRegistrationPayload(registerDto: RegisterDto) {
+    return {
+      name: registerDto.name?.trim(),
+      username: registerDto.username?.trim(),
+      email: registerDto.email?.trim().toLowerCase(),
+      password: registerDto.password,
+      documentNumber: registerDto.documentNumber?.trim(),
+      documentType: registerDto.documentType ?? registerDto.typeDocument,
+      company: registerDto.company,
+      avatar: registerDto.avatar || 'default-avatar.svg',
+    };
   }
 
   @Public()
   @Post('login')
-  @ApiOperation({ summary: 'Iniciar sesión' })
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @ApiOperation({
+    summary: 'Iniciar sesión',
+    description:
+      'Límite de 10 intentos por minuto por combinación IP + usuario. ' +
+      'Tras varios fallos consecutivos la cuenta se bloquea temporalmente (429, code LOGIN_LOCKED).',
+  })
   @ApiResponse({ status: 200, description: 'Inicio de sesión exitoso' })
+  @ApiResponse({
+    status: 401,
+    description: 'Usuario o contraseña incorrectos.',
+  })
+  @ApiResponse({
+    status: 429,
+    description:
+      'Demasiados intentos (rate limit o bloqueo temporal de la cuenta).',
+  })
   @ApiBody({ type: LoginDto })
-  async login(@Body() loginDto: LoginDto) {
-    return this.authService.login(loginDto);
+  async login(@Body() loginDto: LoginDto, @Request() request: any) {
+    return this.authService.login(loginDto, getClientIp(request));
   }
 
   @Get('profile')

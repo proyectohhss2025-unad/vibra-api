@@ -1,10 +1,10 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model, Types } from 'mongoose';
+import { Test } from '../tests/schemas/test.schema';
 import { CreatePreTestDto } from './dto/create-pretest.dto';
 import { UpdatePreTestDto } from './dto/update-pretest.dto';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
 import { PreTest, TestDocument } from './schemas/preTest.schema';
-import { Test } from '../tests/schemas/test.schema';
 
 @Injectable()
 export class PreTestService {
@@ -255,6 +255,24 @@ export class PreTestService {
       throw new NotFoundException('Test result not found');
     }
     return testResult;
+  }
+
+  /**
+   * Devuelve el `userId` dueño de un resultado (para validar propiedad).
+   * `null` si el resultado no existe o el id no es válido.
+   */
+  async getOwnerId(id: string): Promise<string | null> {
+    if (!Types.ObjectId.isValid(id)) {
+      return null;
+    }
+
+    const result = await this.preTestModel
+      .findById(id)
+      .select('userId')
+      .lean()
+      .exec();
+
+    return result?.userId ? String(result.userId) : null;
   }
 
   /**
